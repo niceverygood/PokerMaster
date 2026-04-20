@@ -123,6 +123,19 @@ function renderTable(rootId, tournament, hand, opts) {
       seat.appendChild(actEl);
     }
 
+    // 성향 보기 버튼 (AI 상대, 핸드 #10 이후)
+    if (!p.isHuman && tournament && tournament.handNumber >= 10) {
+      const mainP = tournament.players.find(mp => mp.id === p.id);
+      if (mainP && mainP.personality) {
+        const btn = document.createElement('button');
+        btn.className = 'seat-personality-btn';
+        btn.textContent = mainP.personality.emoji + ' 성향';
+        btn.title = '이 상대의 플레이 스타일/통계 보기';
+        btn.onclick = (e) => { e.stopPropagation(); if (typeof showPersonalityModal === 'function') showPersonalityModal(p.id); };
+        seat.appendChild(btn);
+      }
+    }
+
     felt.appendChild(seat);
   }
 }
@@ -242,11 +255,59 @@ function logMessage(msg) {
   if (!log) return;
   let cls = 'log-line';
   if (msg.startsWith('---')) cls += ' hand-sep';
-  else if (msg.startsWith('팟 ')) cls += ' winner';
-  const p = el('div', cls, msg);
+  else if (msg.startsWith('💰') || msg.startsWith('팟 ')) cls += ' winner';
+  else if (msg.startsWith('🎴') || msg.includes('쇼다운')) cls += ' showdown';
+  else if (msg.startsWith('📊') || msg.startsWith('📖')) cls += ' summary';
+  else if (msg.startsWith('  ✓')) cls += ' verdict-good';
+  else if (msg.startsWith('  △')) cls += ' verdict-ok';
+  else if (msg.startsWith('  ✗')) cls += ' verdict-bad';
+  const p = el('div', cls);
+  const wrapped = (typeof wrapJargonText === 'function') ? wrapJargonText(msg) : msg.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  p.innerHTML = wrapped;
   log.appendChild(p);
   log.scrollTop = log.scrollHeight;
-  while (log.children.length > 200) log.removeChild(log.firstChild);
+  while (log.children.length > 300) log.removeChild(log.firstChild);
+}
+
+// 로그 하단 인라인 AI 채팅
+async function submitLogChat() {
+  const input = document.getElementById('log-chat-input');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  appendLogChatMsg('user', text);
+  appendLogChatMsg('assistant', '⏳ 생각 중...', true);
+  const result = (typeof askAI === 'function') ? await askAI(text) : { error: 'AI 모듈 미로드' };
+  removeLogChatLoading();
+  if (result.error) {
+    appendLogChatMsg('assistant', '⚠️ ' + result.error);
+  } else {
+    appendLogChatMsg('assistant', result.reply);
+  }
+}
+
+function appendLogChatMsg(role, content, loading) {
+  const box = document.getElementById('log-chat-messages');
+  if (!box) return;
+  const m = document.createElement('div');
+  m.className = 'log-chat-msg lcm-' + role + (loading ? ' loading' : '');
+  const fmt = (typeof formatChatText === 'function') ? formatChatText(content) : content.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])).replace(/\n/g, '<br>');
+  m.innerHTML = `<b>${role === 'user' ? '나' : '🤖'}</b> ${fmt}`;
+  box.appendChild(m);
+  box.scrollTop = box.scrollHeight;
+}
+
+function removeLogChatLoading() {
+  const box = document.getElementById('log-chat-messages');
+  if (!box) return;
+  const loading = box.querySelector('.log-chat-msg.loading');
+  if (loading) loading.remove();
+}
+
+function quickLogAsk(q) {
+  const input = document.getElementById('log-chat-input');
+  if (input) { input.value = q; submitLogChat(); }
 }
 
 function describeAction(act, state) {

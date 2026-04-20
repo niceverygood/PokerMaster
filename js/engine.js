@@ -36,9 +36,11 @@ class Tournament {
       name: p.name,
       isHuman: !!p.isHuman,
       difficulty: p.difficulty || 'intermediate',
+      personality: !p.isHuman && typeof assignPersonality === 'function' ? assignPersonality(p.difficulty || 'intermediate') : null,
       stack: this.startStack,
       eliminated: false,
-      position: null
+      position: null,
+      stats: { handsPlayed: 0, vpipHands: 0, pfrHands: 0, aggressiveActions: 0, passiveActions: 0 }
     }));
     this.handNumber = 0;
     this.level = 0;
@@ -80,6 +82,7 @@ class Tournament {
       name: p.name,
       isHuman: p.isHuman,
       difficulty: p.difficulty,
+      personality: p.personality,
       position: p.position,
       stackStart: p.stack,
       stack: p.stack,
@@ -88,8 +91,15 @@ class Tournament {
       totalBet: 0,
       folded: false,
       allIn: false,
-      hasActed: false
+      hasActed: false,
+      vpipThisHand: false,
+      pfrThisHand: false
     }));
+    // 이 핸드 참가 → handsPlayed 카운트
+    for (const ps of playerStates) {
+      const main = this.players.find(mp => mp.id === ps.id);
+      if (main && main.stats) main.stats.handsPlayed++;
+    }
 
     // 블라인드 포스팅
     const sbPlayer = playerStates.find(p => p.position === 'SB') || playerStates.find(p => p.position === 'BTN');
@@ -250,6 +260,23 @@ class Tournament {
 
     p.hasActed = true;
     p.lastAction = { type: actualType, amount: amountRecord, street: h.street };
+
+    // 통계: VPIP / PFR / 공격성
+    const mainP = this.players.find(mp => mp.id === p.id);
+    if (mainP && mainP.stats) {
+      if (h.street === 'preflop') {
+        if ((action.type === 'call' || action.type === 'bet' || action.type === 'raise' || action.type === 'allin') && !p.vpipThisHand) {
+          p.vpipThisHand = true;
+          mainP.stats.vpipHands++;
+        }
+        if ((action.type === 'bet' || action.type === 'raise' || action.type === 'allin') && !p.pfrThisHand) {
+          p.pfrThisHand = true;
+          mainP.stats.pfrHands++;
+        }
+      }
+      if (action.type === 'bet' || action.type === 'raise' || action.type === 'allin') mainP.stats.aggressiveActions++;
+      else if (action.type === 'call' || action.type === 'check') mainP.stats.passiveActions++;
+    }
     h.actions.push({
       street: h.street,
       playerId: p.id,

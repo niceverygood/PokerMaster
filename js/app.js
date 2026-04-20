@@ -132,7 +132,8 @@ function runAITurn() {
     bigBlind: hand.bb,
     activeOpponents: activeOpps,
     street: hand.street,
-    difficulty: cur.difficulty
+    difficulty: cur.difficulty,
+    personality: cur.personality
   });
 
   applyAndContinue(decision);
@@ -158,9 +159,14 @@ function applyAndContinue(decision) {
   // 히어로 결정이면 코칭 권장 대비 기록
   if (cur.isHuman) recordHeroDecisionLive(act.type);
 
+  // applyAction 이후 추가된 액션 전부 로깅 (스트리트 자동 전환된 경우 deal도 포함)
+  const before = hand.actions.length;
   tournament.applyAction(act);
-  const actState = hand.playerStates.find(p => p.id === cur.id);
-  logMessage(describeAction(hand.actions[hand.actions.length - 1], actState));
+  const added = hand.actions.slice(before);
+  for (const a of added) {
+    const p = a.playerId != null ? hand.playerStates.find(x => x.id === a.playerId) : null;
+    logMessage(describeAction(a, p));
+  }
 
   // 다음 턴
   if (hand.finished) {
@@ -176,12 +182,66 @@ function postHandSettle() {
   if (!hand) return;
   // 결과 표시
   renderTable('table', tournament, hand, { revealOpponents: true });
+
+  // 쇼다운: 2명 이상 남아 있고 보드가 깔렸으면 카드 공개 + 상세 승자 설명
+  const survivors = hand.playerStates.filter(p => !p.folded);
+  const isShowdown = survivors.length >= 2 && hand.board.length > 0;
+  if (isShowdown) {
+    const boardStr = hand.board.map(c => c.rankStr + c.suitSym).join(' ');
+    logMessage('🎴 ═══ 쇼다운 (카드 공개) ═══');
+    logMessage(`   보드: ${boardStr}`);
+    const ranked = survivors.map(p => ({
+      p, eval: evaluate7([...p.hole, ...hand.board])
+    })).sort((a, b) => b.eval.score - a.eval.score);
+    const topScore = ranked[0].eval.score;
+    for (const r of ranked) {
+      const cardsStr = r.p.hole.map(c => c.rankStr + c.suitSym).join(' ');
+      const bestCards = r.eval.cards.map(c => c.rankStr + c.suitSym).join(' ');
+      const tag = r.eval.score === topScore ? ' 🏆 승' : '';
+      logMessage(`   ${r.p.name} (${r.p.position}): ${cardsStr} → ${r.eval.name} [${bestCards}]${tag}`);
+    }
+    // 승자/패자 사이 승리 이유 설명
+    const winners = ranked.filter(r => r.eval.score === topScore);
+    const losers = ranked.filter(r => r.eval.score !== topScore);
+    if (winners.length === 1 && losers.length >= 1) {
+      const w = winners[0];
+      const l = losers[0];
+      logMessage(`   ➜ ${explainWinReason(w, l)}`);
+    } else if (winners.length > 1) {
+      logMessage(`   ➜ 동일한 족보로 무승부 — 팟을 나눠 가져갑니다.`);
+    }
+  }
+
   if (hand.allocations) {
     for (const alloc of hand.allocations) {
       const names = alloc.winners.map(w => `${w.name}(${w.handName})`).join(', ');
-      logMessage(`팟 ${alloc.amount.toLocaleString()} → ${names}`);
+      logMessage(`💰 팟 ${alloc.amount.toLocaleString()} → ${names}`);
     }
   }
+
+  // 히어로 결정 상세 해설 로그
+  if (currentHandHeroDecisions.length > 0) {
+    const total = currentHandHeroDecisions.length;
+    const good = currentHandHeroDecisions.filter(d => d.correct).length;
+    const ok = currentHandHeroDecisions.filter(d => d.partial && !d.correct).length;
+    const bad = total - good - ok;
+    logMessage(`📊 내 결정 ${total}회: 정답 ${good} / 유사 ${ok} / 오답 ${bad}`);
+    currentHandHeroDecisions.forEach((d, i) => {
+      const icon = d.correct ? '✓' : d.partial ? '△' : '✗';
+      const verdictLabel = d.correct ? '정답' : d.partial ? '유사' : '오답';
+      const rec = d.rec;
+      const streetLabel = streetName(rec.street || 'preflop');
+      logMessage(`  ${icon} #${i + 1} ${streetLabel} ${rec.hand || ''} (${rec.position || ''}): ${verdictLabel}`);
+      logMessage(`     실제: ${shortActionKor(d.actual)} · 권장: ${shortActionKor(rec.action)}`);
+      if (rec.category === 'postflop' && typeof rec.equity === 'number') {
+        const eqP = (rec.equity * 100).toFixed(1);
+        const poP = (rec.potOdds * 100).toFixed(1);
+        logMessage(`     승률 ${eqP}% · 필요승률 ${poP}%`);
+      }
+      logMessage(`     ${explainDecision(d)}`);
+    });
+  }
+
   renderTopbar(tournament);
 
   tournament.endHand();
@@ -444,8 +504,24 @@ function renderCoachingHint(hand, heroState, legal) {
 }
 
 function hideCoachingHint() {
+  // 더 이상 완전히 숨기지 않고 "대기 중" 표시로 전환
+  renderCoachingIdle();
+}
+
+function renderCoachingIdle() {
   const bar = document.getElementById('coaching-bar');
-  if (bar) bar.classList.remove('visible');
+  if (!bar) return;
+  let waitText = '상대 턴 대기 중';
+  try {
+    const cur = tournament?.currentPlayer();
+    if (cur && !cur.isHuman) waitText = `${cur.name} (${cur.position}) 플레이 중...`;
+  } catch (e) {}
+  bar.innerHTML = `
+    <span class="coach-title">💡 코칭</span>
+    <span class="coach-reason">${waitText}</span>
+    <button class="coach-ai-btn" onclick="openAIChatWithQuestion('지금 이 상황을 분석해줘. 내 차례가 오면 뭘 고려해야 할까?')" title="AI 코치에게 물어보기">🤖 AI 분석</button>
+  `;
+  bar.classList.add('visible');
 }
 
 function showToast(title, bodyHtml, durationMs) {
@@ -471,6 +547,82 @@ function recordHeroDecisionLive(actionType) {
     rec, actual: actionType, verdict: ev.verdict, correct: ev.correct, partial: ev.partial
   });
   window._pendingHeroRec = null;
+}
+
+function explainWinReason(winnerObj, loserObj) {
+  const rankKo = ['', '하이카드', '원 페어', '투 페어', '트립스', '스트레이트', '플러시', '풀 하우스', '포카드', '스트레이트/로열 플러시'];
+  const we = winnerObj.eval, le = loserObj.eval;
+  const wName = winnerObj.p.name, lName = loserObj.p.name;
+  if (we.rank > le.rank) {
+    return `${wName} 승! 포커 족보에서 <b>${rankKo[we.rank]}</b>이(가) <b>${rankKo[le.rank]}</b>보다 위라 이김.`;
+  }
+  const wCards = we.cards.map(c => c.rank).sort((a, b) => b - a);
+  const lCards = le.cards.map(c => c.rank).sort((a, b) => b - a);
+  const rc = r => RANK_CHARS[r - 2];
+  for (let i = 0; i < Math.min(wCards.length, lCards.length); i++) {
+    if (wCards[i] !== lCards[i]) {
+      return `${wName} 승! 같은 <b>${rankKo[we.rank]}</b>지만 더 높은 카드 <b>${rc(wCards[i])}</b>가 상대 <b>${rc(lCards[i])}</b>를 이김(킥커 승).`;
+    }
+  }
+  return `${wName} 승! 같은 ${rankKo[we.rank]}로 더 강한 조합.`;
+}
+
+function shortActionKor(a) {
+  return ({ fold: '폴드', check: '체크', call: '콜', bet: '베팅', raise: '레이즈', allin: '올인', push: '푸시' })[a] || a || '-';
+}
+
+// 개별 결정의 자세한 설명
+function explainDecision(d) {
+  const rec = d.rec;
+  const recAct = rec.action;
+  const actualAct = d.actual;
+  if (d.correct) {
+    if (rec.category === 'preflop') {
+      return `✅ 이유: ${rec.reason}. 차트가 권장한 ${shortActionKor(recAct)}을(를) 정확히 선택.`;
+    }
+    const eqP = (rec.equity * 100).toFixed(1);
+    return `✅ 이유: 수학적으로 +EV. 승률 ${eqP}%가 상황에 맞는 ${shortActionKor(recAct)}을(를) 정당화.`;
+  }
+
+  // 오답 또는 유사 — 왜 틀렸는지 구체적 설명
+  if (rec.category === 'preflop') {
+    if (recAct === 'fold' && (actualAct === 'call' || actualAct === 'raise' || actualAct === 'allin')) {
+      return `⚠️ ${rec.position} ${Math.round(rec.stackBB)}BB에서 이 핸드는 레인지 밖. 플레이하면 OOP 또는 커버되지 않는 스팟이 많아 장기적으로 칩 손실.`;
+    }
+    if ((recAct === 'raise' || recAct === 'push') && actualAct === 'fold') {
+      return `⚠️ 플레이 가능한 프리미엄/레인지 핸드를 폴드. 블라인드 방어 및 포지션 이점을 놓침.`;
+    }
+    if ((recAct === 'raise' || recAct === 'push') && actualAct === 'call') {
+      return `⚠️ 콜 대신 레이즈가 더 강한 선택. 이니셔티브를 잡고 폴드 에쿼티를 확보할 기회.`;
+    }
+    if (recAct === 'call' && actualAct === 'fold') {
+      return `⚠️ 팟 오즈/포지션상 콜이 가능한 스팟을 포기. 수익 기회 놓침.`;
+    }
+    if (recAct === 'call' && (actualAct === 'raise' || actualAct === 'allin')) {
+      return `⚠️ 과한 공격. 3-Bet/올인 레인지가 아닌 핸드로 리레이즈 → 상대 밸류에 잡힐 위험.`;
+    }
+    return `⚠️ 근거: ${rec.reason}`;
+  }
+
+  // 포스트플롭
+  const eqP = (rec.equity * 100).toFixed(1);
+  const poP = (rec.potOdds * 100).toFixed(1);
+  if (recAct === 'fold' && (actualAct === 'call' || actualAct === 'raise' || actualAct === 'allin')) {
+    return `⚠️ 승률 ${eqP}% < 필요승률 ${poP}%. 콜은 장기적 -EV. 폴드가 수학적 정답.`;
+  }
+  if (recAct === 'call' && actualAct === 'fold') {
+    return `⚠️ 승률 ${eqP}% ≥ 필요승률 ${poP}%. 팟 오즈상 콜이 +EV인 스팟을 놓침.`;
+  }
+  if ((recAct === 'raise' || recAct === 'bet') && actualAct === 'fold') {
+    return `⚠️ 승률 ${eqP}%로 밸류 베팅/레이즈가 정답. 폴드는 과소평가.`;
+  }
+  if ((recAct === 'raise' || recAct === 'bet') && (actualAct === 'call' || actualAct === 'check')) {
+    return `⚠️ 승률 ${eqP}%면 밸류 추출을 위해 공격적 액션이 필요. 체크/콜은 밸류를 흘림.`;
+  }
+  if ((recAct === 'check') && (actualAct === 'bet' || actualAct === 'raise')) {
+    return `⚠️ 승률 ${eqP}%는 밸류 베팅에 약하고, 베팅 받았을 때 도망가기도 어려움. 체크가 무난.`;
+  }
+  return `⚠️ 근거: ${rec.reason}`;
 }
 
 function showHandSummaryToast() {
@@ -555,6 +707,56 @@ function renderProfileCard() {
       <div class="stat-cell"><div class="stat-value">${profile.totalChipDelta >= 0 ? '+' : ''}${profile.totalChipDelta.toLocaleString()}</div><div class="stat-label">누적 칩</div></div>
     </div>
     ${mistakesHtml}`;
+}
+
+// 성향 모달
+function showPersonalityModal(playerId) {
+  if (!tournament) return;
+  const player = tournament.players.find(p => p.id === playerId);
+  if (!player || !player.personality) return;
+  const pers = player.personality;
+  const st = player.stats || {};
+  const hp = st.handsPlayed || 0;
+  const vpip = hp > 0 ? Math.round(st.vpipHands / hp * 100) : 0;
+  const pfr = hp > 0 ? Math.round(st.pfrHands / hp * 100) : 0;
+  const af = (st.passiveActions > 0) ? (st.aggressiveActions / st.passiveActions).toFixed(1) : (st.aggressiveActions > 0 ? '∞' : '-');
+
+  closePersonalityModal();
+  const wrap = document.createElement('div');
+  wrap.id = 'personality-modal-wrap';
+  wrap.innerHTML = `
+    <div class="pm-backdrop" onclick="closePersonalityModal()"></div>
+    <div class="pm-modal">
+      <button class="pm-close" onclick="closePersonalityModal()">✕</button>
+      <div class="pm-header">
+        <div class="pm-icon">${pers.emoji}</div>
+        <div class="pm-meta">
+          <div class="pm-name">${player.name} · ${player.position || ''}</div>
+          <div class="pm-type">${pers.name}</div>
+          <div class="pm-short">${pers.short}</div>
+        </div>
+      </div>
+      <div class="pm-desc">${pers.desc}</div>
+      <div class="pm-advice"><b>공략 팁:</b> ${pers.adviceTip}</div>
+      <div class="pm-stats">
+        <div class="pm-stat"><div class="pm-stat-value">${vpip}%</div><div class="pm-stat-label">VPIP</div></div>
+        <div class="pm-stat"><div class="pm-stat-value">${pfr}%</div><div class="pm-stat-label">PFR</div></div>
+        <div class="pm-stat"><div class="pm-stat-value">${af}</div><div class="pm-stat-label">AF</div></div>
+        <div class="pm-stat"><div class="pm-stat-value">${hp}</div><div class="pm-stat-label">핸드</div></div>
+      </div>
+      <div class="pm-hint">
+        <div><b>VPIP</b>: 자발적으로 팟에 들어간 비율. 20~25% 타이트 / 30%+ 루즈.</div>
+        <div><b>PFR</b>: 프리플롭 레이즈 비율. VPIP에 근접할수록 공격적.</div>
+        <div><b>AF</b>: 공격성 = (베팅+레이즈) / (콜+체크). 2.0 이상이면 공격적.</div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(wrap);
+}
+
+function closePersonalityModal() {
+  const w = document.getElementById('personality-modal-wrap');
+  if (w) w.remove();
 }
 
 function setBet(kind) {

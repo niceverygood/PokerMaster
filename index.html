@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>홀덤 마스터 — 토너먼트 & 복기</title>
-  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="stylesheet" href="styles.css?v=6">
 </head>
 <body>
 
@@ -80,8 +80,27 @@
   </div>
   <div class="game-body">
     <aside id="message-log">
-      <div class="log-header">핸드 로그</div>
+      <div class="log-header">
+        <span>핸드 로그</span>
+        <button class="log-clear-btn" title="로그 지우기" onclick="document.getElementById('log-entries').innerHTML=''">🗑</button>
+      </div>
       <div id="log-entries"></div>
+      <div id="log-chat">
+        <div class="log-chat-header">
+          <span>🤖 AI 코치에게 바로 묻기</span>
+          <button class="log-clear-btn" title="대화 지우기" onclick="document.getElementById('log-chat-messages').innerHTML=''">🗑</button>
+        </div>
+        <div id="log-chat-messages"></div>
+        <div class="log-chat-quick">
+          <button onclick="quickLogAsk('지금 이 상황 분석해줘')">지금 분석</button>
+          <button onclick="quickLogAsk('방금 핸드 내가 잘 플레이했어?')">방금 핸드 평가</button>
+          <button onclick="quickLogAsk('상대 성향/레인지를 추측해줘')">상대 레인지</button>
+        </div>
+        <div class="log-chat-input-row">
+          <input id="log-chat-input" placeholder="질문 입력 후 Enter…" onkeydown="if(event.key==='Enter'){event.preventDefault();submitLogChat();}">
+          <button class="primary" onclick="submitLogChat()">↵</button>
+        </div>
+      </div>
     </aside>
     <div class="game-main">
       <div id="table"></div>
@@ -149,18 +168,19 @@
 </div>
 
 <!-- 로컬 설정 (깃 제외). 존재하지 않으면 UI에서 키 입력 -->
-<script src="js/config.local.js?v=3" onerror="this.remove()"></script>
-<script src="js/cards.js?v=3"></script>
-<script src="js/equity.js?v=3"></script>
-<script src="js/ranges.js?v=3"></script>
-<script src="js/coach.js?v=3"></script>
-<script src="js/aicoach.js?v=3"></script>
-<script src="js/training.js?v=3"></script>
-<script src="js/ai.js?v=3"></script>
-<script src="js/engine.js?v=3"></script>
-<script src="js/ui.js?v=3"></script>
-<script src="js/review.js?v=3"></script>
-<script src="js/app.js?v=3"></script>
+<script src="js/config.local.js?v=6" onerror="this.remove()"></script>
+<script src="js/cards.js?v=6"></script>
+<script src="js/glossary.js?v=6"></script>
+<script src="js/equity.js?v=6"></script>
+<script src="js/ranges.js?v=6"></script>
+<script src="js/coach.js?v=6"></script>
+<script src="js/aicoach.js?v=6"></script>
+<script src="js/training.js?v=6"></script>
+<script src="js/ai.js?v=6"></script>
+<script src="js/engine.js?v=6"></script>
+<script src="js/ui.js?v=6"></script>
+<script src="js/review.js?v=6"></script>
+<script src="js/app.js?v=6"></script>
 <!-- 플로팅 AI 코치 -->
 <button id="ai-chat-toggle" class="ai-chat-toggle" title="AI 코치에게 물어보기" onclick="toggleAIChat()">🤖</button>
 <div id="ai-chat-panel" class="ai-chat-panel">

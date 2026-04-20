@@ -93,14 +93,14 @@ function computeRecommendation(ctx) {
 
   let action, label, reason;
   if (toCall === 0) {
-    if (eq.equity > 0.6) { action = 'bet'; label = `밸류 베팅 (약 ${Math.round(pot * 0.66).toLocaleString()})`; reason = `승률 ${eqP}%로 밸류 있음`; }
-    else if (eq.equity >= 0.35) { action = 'check'; label = '체크'; reason = `승률 ${eqP}%, 컨트롤 권장`; }
-    else { action = 'check'; label = '체크'; reason = `승률 ${eqP}% — 주로 체크`; }
+    if (eq.equity > 0.6) { action = 'bet'; label = `베팅 (약 ${Math.round(pot * 0.66).toLocaleString()})`; reason = `이길 확률 ${eqP}%로 충분히 강해요. 약한 핸드 상대로 콜 받아 팟을 더 키워봅시다.`; }
+    else if (eq.equity >= 0.35) { action = 'check'; label = '체크 (패스)'; reason = `이길 확률 ${eqP}% — 애매해요. 일단 체크해서 상대 반응을 보세요.`; }
+    else { action = 'check'; label = '체크 (패스)'; reason = `이길 확률 ${eqP}%로 약해요. 돈 넣지 말고 체크가 안전.`; }
   } else {
     const poP = (po * 100).toFixed(1);
-    if (eq.equity > 0.75) { action = 'raise'; label = '레이즈 (밸류)'; reason = `승률 ${eqP}% — 밸류 레이즈`; }
-    else if (eq.equity >= po) { action = 'call'; label = '콜'; reason = `승률 ${eqP}% ≥ 필요 ${poP}% → 수익`; }
-    else { action = 'fold'; label = '폴드'; reason = `승률 ${eqP}% < 필요 ${poP}% → 손해`; }
+    if (eq.equity > 0.75) { action = 'raise'; label = '레이즈 (공격)'; reason = `이길 확률 ${eqP}% — 최강에 가까운 핸드. 레이즈로 팟을 키우세요.`; }
+    else if (eq.equity >= po) { action = 'call'; label = '콜 (맞춰 내기)'; reason = `이길 확률 ${eqP}% ≥ 필요 확률 ${poP}%. 콜하면 장기적으로 이득(+EV)입니다.`; }
+    else { action = 'fold'; label = '폴드 (포기)'; reason = `이길 확률 ${eqP}% < 필요 확률 ${poP}%. 콜하면 장기적으로 손해(-EV)라 폴드가 정답.`; }
   }
 
   const streetName = board.length === 3 ? 'flop' : board.length === 4 ? 'turn' : 'river';

@@ -465,6 +465,72 @@ button.secondary:hover:not(:disabled) { background: #385a7a; }
 .action-bet, .action-raise { background: #b85420; color: #ffe6d0; }
 .action-allin { background: #c42020; color: #fff; }
 
+.seat-personality-btn {
+  margin-top: 4px; padding: 2px 8px;
+  font-size: 10px; font-weight: 600;
+  background: #1a2a3a; color: #bcd4f6;
+  border: 1px solid #3a5a7a; border-radius: 10px;
+  cursor: pointer; transition: all 0.15s;
+}
+.seat-personality-btn:hover {
+  background: #2a4a6a; border-color: #5a9cdf; color: #fff;
+}
+
+/* 성향 모달 */
+.pm-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  z-index: 9998;
+}
+.pm-modal {
+  position: fixed; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 420px; max-width: calc(100vw - 40px);
+  background: #1a1f26; border: 1px solid #2d3642;
+  border-radius: 12px; padding: 24px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.8);
+  z-index: 9999;
+  animation: slideIn 0.2s ease;
+}
+.pm-close {
+  position: absolute; top: 10px; right: 10px;
+  background: transparent; border: none; color: #8b9095;
+  font-size: 18px; cursor: pointer; padding: 4px 10px;
+}
+.pm-close:hover { color: #ffd97a; }
+.pm-header {
+  display: flex; gap: 14px; align-items: center; margin-bottom: 14px;
+}
+.pm-icon { font-size: 44px; }
+.pm-meta .pm-name { font-size: 14px; color: #bcd4f6; font-weight: 600; }
+.pm-meta .pm-type { font-size: 18px; font-weight: 800; color: #ffd97a; margin: 3px 0; }
+.pm-meta .pm-short { font-size: 11px; color: #8b9095; }
+.pm-desc {
+  padding: 10px 14px; background: #242c35; border-radius: 8px;
+  font-size: 13px; line-height: 1.6; color: #e0e8ee;
+  margin-bottom: 10px;
+}
+.pm-advice {
+  padding: 10px 14px; background: #2a2410; border: 1px solid #4a3f20;
+  border-radius: 8px; font-size: 12px; line-height: 1.5; color: #ffe0a0;
+  margin-bottom: 14px;
+}
+.pm-advice b { color: #ffd97a; }
+.pm-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 8px; margin-bottom: 14px;
+}
+.pm-stat {
+  background: #0f1419; padding: 10px 6px; border-radius: 6px;
+  text-align: center;
+}
+.pm-stat-value { font-size: 18px; font-weight: 800; color: #ffd97a; }
+.pm-stat-label { font-size: 10px; color: #8b9095; margin-top: 3px; }
+.pm-hint {
+  padding: 10px; background: #10141a; border-radius: 6px;
+  font-size: 11px; color: #8b9095; line-height: 1.6;
+}
+.pm-hint b { color: #bcd4f6; }
+
 /* 카드 */
 .card {
   width: 46px; height: 64px; border-radius: 5px;
@@ -517,21 +583,99 @@ button.secondary:hover:not(:disabled) { background: #385a7a; }
 #raise-amount { padding: 6px 10px; border-radius: 4px; border: 1px solid #2d3642; background: #242c35; color: #e8e8e8; }
 
 #message-log {
-  width: 260px; flex-shrink: 0;
+  width: 300px; flex-shrink: 0;
   background: #10141a; border-right: 1px solid #2d3642;
   display: flex; flex-direction: column;
   font-size: 12px; color: #8b9095;
 }
 .log-header {
   padding: 10px 14px; border-bottom: 1px solid #2d3642;
-  font-size: 13px; font-weight: 600; color: #bcd4f6; flex-shrink: 0;
+  font-size: 13px; font-weight: 600; color: #bcd4f6;
+  flex-shrink: 0; display: flex; justify-content: space-between; align-items: center;
 }
+.log-clear-btn { padding: 2px 6px; font-size: 11px; background: transparent; border: none; color: #8b9095; cursor: pointer; }
+.log-clear-btn:hover { color: #ffd97a; }
+
 #log-entries {
-  flex: 1; overflow-y: auto; padding: 8px 14px;
+  flex: 1; overflow-y: auto; padding: 8px 14px; min-height: 100px;
 }
-.log-line { margin: 3px 0; line-height: 1.5; }
+.log-line { margin: 3px 0; line-height: 1.5; word-break: break-word; }
 .log-line.hand-sep { color: #ffd97a; font-weight: 600; margin-top: 8px; padding-top: 6px; border-top: 1px solid #2d3642; }
-.log-line.winner { color: #8fe8a5; }
+.log-line.winner { color: #8fe8a5; font-weight: 600; }
+.log-line.showdown { color: #ffd97a; font-weight: 600; margin-top: 4px; }
+.log-line.summary { color: #bcd4f6; font-weight: 600; margin-top: 4px; }
+.log-line.verdict-good { color: #8fe8a5; }
+.log-line.verdict-ok { color: #ffd97a; }
+.log-line.verdict-bad { color: #ff9090; }
+
+/* 용어 툴팁 */
+.jargon {
+  border-bottom: 1px dashed #7a8a9a;
+  cursor: help; position: relative;
+}
+.jargon:hover { color: #ffd97a; border-bottom-style: solid; border-bottom-color: #ffd97a; }
+.jargon:hover::after {
+  content: attr(data-detail);
+  position: absolute;
+  bottom: calc(100% + 6px); left: 0;
+  background: #0f1419; color: #e0e8ee;
+  padding: 8px 12px;
+  border: 1px solid #ffd97a; border-radius: 6px;
+  font-size: 11px; line-height: 1.5; font-weight: 400;
+  white-space: normal; width: 240px;
+  z-index: 10000; box-shadow: 0 6px 24px rgba(0,0,0,0.7);
+  pointer-events: none;
+}
+
+/* 로그 하단 인라인 AI 채팅 */
+#log-chat {
+  border-top: 1px solid #2d3642;
+  background: #0c1015;
+  display: flex; flex-direction: column;
+  max-height: 45%; flex-shrink: 0;
+}
+.log-chat-header {
+  padding: 8px 14px; font-size: 11px; color: #a8b8d6; font-weight: 600;
+  border-bottom: 1px solid #2d3642;
+  display: flex; justify-content: space-between; align-items: center;
+  background: linear-gradient(90deg, #172232, #1a1424);
+}
+#log-chat-messages {
+  flex: 1; overflow-y: auto;
+  padding: 8px 12px; font-size: 11px;
+  max-height: 240px; min-height: 60px;
+}
+.log-chat-msg { margin: 4px 0; line-height: 1.5; word-break: break-word; }
+.log-chat-msg b { color: #bcd4f6; margin-right: 4px; font-size: 11px; }
+.log-chat-msg.lcm-user b { color: #5a9cdf; }
+.log-chat-msg.lcm-assistant { color: #d0d8e0; }
+.log-chat-msg.lcm-assistant b { color: #ffd97a; }
+.log-chat-msg.loading { opacity: 0.7; font-style: italic; }
+
+.log-chat-quick {
+  display: flex; gap: 4px; padding: 4px 8px;
+  flex-wrap: wrap;
+}
+.log-chat-quick button {
+  padding: 4px 8px; font-size: 10px;
+  background: #1a1f26; border: 1px solid #2d3642; color: #bcd4f6;
+  border-radius: 10px; cursor: pointer;
+}
+.log-chat-quick button:hover { background: #2d3642; }
+
+.log-chat-input-row {
+  display: flex; gap: 4px; padding: 6px 8px 8px; border-top: 1px solid #2d3642;
+}
+.log-chat-input-row input {
+  flex: 1; padding: 6px 10px; font-size: 11px;
+  background: #1a1f26; border: 1px solid #2d3642; color: #e8e8e8;
+  border-radius: 14px;
+}
+.log-chat-input-row input:focus { outline: none; border-color: #2d6cdf; }
+.log-chat-input-row button {
+  padding: 6px 12px; font-size: 12px;
+  border-radius: 14px; min-width: 34px;
+}
 
 /* ===================== 복기 ===================== */
 #screen-review .topbar { gap: 20px; }

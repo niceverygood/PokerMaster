@@ -101,47 +101,83 @@ function getPushRange(position, stackBB) {
 }
 
 // 프리플롭 권장 액션
+// 포지션 풀네임 (초보도 이해 쉽게)
+const POS_FULL_KO = {
+  UTG: 'UTG(첫 자리)', HJ: 'HJ(중간)', CO: 'CO(컷오프)',
+  BTN: 'BTN(버튼=가장 좋은 자리)', SB: 'SB(스몰 블라인드)', BB: 'BB(빅 블라인드)'
+};
+function posKo(p) { return POS_FULL_KO[p] || p; }
+
 function preflopRecommendation(hand, position, stackBB, facingAction) {
-  // facingAction: 'none' (첫 액션), 'limp', 'raise', 'shove'
+  const sBB = Math.round(stackBB);
+  const posName = posKo(position);
+
   if (stackBB <= 15) {
     const pushRange = getPushRange(position, stackBB);
     if (facingAction === 'none' || facingAction === 'limp') {
       if (pushRange.has(hand)) {
-        return { action: 'push', label: '올인 푸시', reason: `${position} ${Math.round(stackBB)}BB 푸시 레인지` };
+        return {
+          action: 'push', label: '올인 (전부)',
+          reason: `${posName} · ${sBB}BB 숏스택. 이 핸드는 올인으로 밀어붙일 만큼 충분히 강해요. 레이즈보다 올인이 정답 (상대가 폴드할 확률도 크고, 콜 받아도 승산 있음).`
+        };
       }
-      return { action: 'fold', label: '폴드', reason: `${position} ${Math.round(stackBB)}BB 푸시 레인지 밖` };
+      return {
+        action: 'fold', label: '폴드 (포기)',
+        reason: `${posName} · ${sBB}BB에서 이 핸드는 너무 약해요. 숏스택에선 애매한 핸드로 칩을 낭비하면 안 돼요. 더 좋은 스팟을 기다리세요.`
+      };
     }
     if (facingAction === 'shove' || facingAction === 'raise') {
-      // 콜 레인지는 푸시보다 약간 타이트
       const tight = tightenRange(pushRange, 0.7);
       if (tight.has(hand)) {
-        return { action: 'call', label: '콜/리쉬브', reason: '숏스택 콜 레인지 포함' };
+        return {
+          action: 'call', label: '콜 (맞춰 내기)',
+          reason: '숏스택에서 콜해도 될 만큼 강한 핸드예요. 하지만 콜은 내 올인 레인지보다 타이트해야 한다는 점 기억하세요.'
+        };
       }
-      return { action: 'fold', label: '폴드', reason: '숏스택 콜 레인지 밖' };
+      return {
+        action: 'fold', label: '폴드 (포기)',
+        reason: '상대가 올인/레이즈한 상태예요. 이 핸드로 콜하면 대부분 지는 상황이라 폴드가 맞아요.'
+      };
     }
   }
 
-  // 딥 스택
   const openRange = OPEN_RANGES[position] || OPEN_RANGES.BTN;
   if (facingAction === 'none') {
     if (openRange.has(hand)) {
-      return { action: 'raise', label: '오픈 레이즈 (2.2~2.5BB)', reason: `${position} 오픈 레인지 포함` };
+      return {
+        action: 'raise', label: '레이즈 (먼저 공격)',
+        reason: `${posName}에서 먼저 들어갈 만한 좋은 핸드예요. 크기는 보통 빅블라인드 2~3배(예: 40~60) 정도. 이렇게 선제 공격하면 블라인드를 훔칠 확률도 커져요.`
+      };
     }
-    return { action: 'fold', label: '폴드', reason: `${position} 오픈 레인지 밖` };
+    return {
+      action: 'fold', label: '폴드 (포기)',
+      reason: `${posName} 자리에서는 이 핸드가 너무 약해요. 앞 자리일수록 엄선된 핸드만 플레이해야 합니다.`
+    };
   }
   if (facingAction === 'raise') {
-    // 심플: 3-bet/콜 레인지 근사 (타이트한 오픈 레인지 교집합)
     const threeBetValue = buildRange(['QQ+', 'AKs', 'AKo']);
     const callRange = tightenRange(openRange, 0.55);
-    if (threeBetValue.has(hand)) return { action: 'raise', label: '3-Bet (밸류)', reason: '밸류 3-Bet 핸드' };
-    if (callRange.has(hand)) return { action: 'call', label: '콜', reason: '3-Bet 밸류는 아니지만 콜 가능' };
-    return { action: 'fold', label: '폴드', reason: '오픈 레이즈에 대응 레인지 밖' };
+    if (threeBetValue.has(hand)) return {
+      action: 'raise', label: '재레이즈 (3-Bet · 공격)',
+      reason: 'QQ+/AK — 최상위 핸드예요. 상대 레이즈 위에 한 번 더 크게 레이즈해서 팟을 키우세요.'
+    };
+    if (callRange.has(hand)) return {
+      action: 'call', label: '콜 (맞춰 내기)',
+      reason: '재레이즈 할 만큼 최강은 아니지만 콜로 플롭을 볼 가치가 있는 핸드예요. 포지션이 좋다면 더 유리합니다.'
+    };
+    return {
+      action: 'fold', label: '폴드 (포기)',
+      reason: '상대가 먼저 레이즈했어요. 이 핸드로 따라가면 대부분 밀리는 상황이에요.'
+    };
   }
   if (facingAction === 'limp') {
-    if (openRange.has(hand)) return { action: 'raise', label: '아이솔레이션 레이즈', reason: '림퍼 아이솔레이트' };
-    return { action: 'fold', label: '폴드', reason: '림프에 참가할 핸드 아님' };
+    if (openRange.has(hand)) return {
+      action: 'raise', label: '레이즈 (림퍼 응징)',
+      reason: '앞 플레이어가 약하게 콜만 한 상태(림프). 레이즈로 압박해서 팟을 키우고 주도권을 잡으세요.'
+    };
+    return { action: 'fold', label: '폴드 (포기)', reason: '림프에 참가할 만한 핸드는 아니에요.' };
   }
-  return { action: 'fold', label: '폴드', reason: '기본값' };
+  return { action: 'fold', label: '폴드 (포기)', reason: '애매한 상황 — 일단 폴드 무난.' };
 }
 
 function tightenRange(set, keepRatio) {
