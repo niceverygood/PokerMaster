@@ -19,9 +19,24 @@ let aiChatMessages = []; // [{role:'user'|'assistant', content}]
 let aiChatOpen = false;
 let aiBusy = false;
 
-function getAIKey() { return localStorage.getItem(AI_KEY_STORAGE) || ''; }
+function getAIKey() {
+  // 우선순위: localStorage → config.local.js (window.POKERMASTER_CONFIG)
+  const ls = localStorage.getItem(AI_KEY_STORAGE);
+  if (ls) return ls;
+  if (typeof window !== 'undefined' && window.POKERMASTER_CONFIG?.OPENROUTER_API_KEY) {
+    return window.POKERMASTER_CONFIG.OPENROUTER_API_KEY;
+  }
+  return '';
+}
 function setAIKey(k) { localStorage.setItem(AI_KEY_STORAGE, k.trim()); }
-function getAIModel() { return localStorage.getItem(AI_MODEL_STORAGE) || DEFAULT_AI_MODEL; }
+function getAIModel() {
+  const ls = localStorage.getItem(AI_MODEL_STORAGE);
+  if (ls) return ls;
+  if (typeof window !== 'undefined' && window.POKERMASTER_CONFIG?.DEFAULT_MODEL) {
+    return window.POKERMASTER_CONFIG.DEFAULT_MODEL;
+  }
+  return DEFAULT_AI_MODEL;
+}
 function setAIModel(m) { localStorage.setItem(AI_MODEL_STORAGE, m); }
 function clearAIKey() {
   localStorage.removeItem(AI_KEY_STORAGE);

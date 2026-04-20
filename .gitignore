@@ -6,3 +6,6 @@ node_modules/
 *.swp
 .vscode/
 .idea/
+
+# 로컬 AI 설정 (API 키 포함) — 절대 커밋 금지
+js/config.local.js

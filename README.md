@@ -41,8 +41,22 @@ python3 -m http.server 8765
 
 ## AI 코치 설정
 
-OpenRouter API 키는 브라우저 **localStorage에만 저장**됩니다. 코드에 포함되지 않습니다.
-[openrouter.ai/keys](https://openrouter.ai/keys)에서 발급 후 AI 코치 패널에서 입력.
+AI 코치는 OpenRouter API를 사용합니다. 두 가지 방법 중 선택:
+
+**방법 1: 로컬 config 파일 (권장, 자동 로드)**
+
+```bash
+cp js/config.example.js js/config.local.js
+# 에디터로 js/config.local.js 열어서 OPENROUTER_API_KEY 입력
+```
+
+`config.local.js`는 `.gitignore`에 의해 GitHub에 푸시되지 않습니다.
+
+**방법 2: UI 입력 (localStorage)**
+
+AI 코치 패널에서 직접 입력. 브라우저 localStorage에만 저장됩니다.
+
+API 키 발급: [openrouter.ai/keys](https://openrouter.ai/keys)
 
 ## 데이터 저장
 
