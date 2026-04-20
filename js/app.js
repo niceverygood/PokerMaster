@@ -571,58 +571,68 @@ function shortActionKor(a) {
   return ({ fold: '폴드', check: '체크', call: '콜', bet: '베팅', raise: '레이즈', allin: '올인', push: '푸시' })[a] || a || '-';
 }
 
-// 개별 결정의 자세한 설명
+// 포지션을 "약어(한글 설명)"로 풀어 쓰는 헬퍼
+function posHuman(p) {
+  const m = { UTG: 'UTG(첫 자리)', HJ: 'HJ(중간 자리)', CO: 'CO(컷오프=좋은 자리)', BTN: 'BTN(버튼=가장 좋은 자리)', SB: 'SB(스몰 블라인드=먼저 행동)', BB: 'BB(빅 블라인드=먼저 행동)' };
+  return m[p] || p;
+}
+
+// 개별 결정의 자세한 설명 — 초보자가 읽어도 이해되게 괄호로 풀어 씀
 function explainDecision(d) {
   const rec = d.rec;
   const recAct = rec.action;
   const actualAct = d.actual;
+
   if (d.correct) {
     if (rec.category === 'preflop') {
-      return `✅ 이유: ${rec.reason}. 차트가 권장한 ${shortActionKor(recAct)}을(를) 정확히 선택.`;
+      return `✅ 잘했어요! 차트가 알려주는 올바른 선택을 했어요. (${rec.reason})`;
     }
     const eqP = (rec.equity * 100).toFixed(1);
-    return `✅ 이유: 수학적으로 +EV. 승률 ${eqP}%가 상황에 맞는 ${shortActionKor(recAct)}을(를) 정당화.`;
+    return `✅ 수학적으로 맞는 선택! 이길 확률 ${eqP}%가 ${shortActionKor(recAct)}을(를) 뒷받침해요. 장기적으로 돈 버는 플레이(+EV=평균 이익)예요.`;
   }
 
-  // 오답 또는 유사 — 왜 틀렸는지 구체적 설명
+  // 오답/유사 — 왜 틀렸는지 초보 눈높이 설명
   if (rec.category === 'preflop') {
+    const posText = posHuman(rec.position);
     if (recAct === 'fold' && (actualAct === 'call' || actualAct === 'raise' || actualAct === 'allin')) {
-      return `⚠️ ${rec.position} ${Math.round(rec.stackBB)}BB에서 이 핸드는 레인지 밖. 플레이하면 OOP 또는 커버되지 않는 스팟이 많아 장기적으로 칩 손실.`;
+      return `⚠️ ${posText} ${Math.round(rec.stackBB)}BB에서 이 핸드는 "플레이 권장 범위" 밖이에요. 참가하면 이길 확률이 낮고, 앞 자리일수록 플롭 이후 불리한 상황(먼저 행동해야 해서 정보가 적음)이 많아요. 장기적으로 칩이 새어 나갑니다. 폴드(포기)가 돈 버는 선택.`;
     }
     if ((recAct === 'raise' || recAct === 'push') && actualAct === 'fold') {
-      return `⚠️ 플레이 가능한 프리미엄/레인지 핸드를 폴드. 블라인드 방어 및 포지션 이점을 놓침.`;
+      return `⚠️ 이 핸드는 충분히 강해서 레이즈(먼저 공격)이 맞아요. 폴드하면 상대가 폴드해줘서 블라인드(강제로 낸 돈)를 가져갈 수 있던 기회를 놓쳐요.`;
     }
     if ((recAct === 'raise' || recAct === 'push') && actualAct === 'call') {
-      return `⚠️ 콜 대신 레이즈가 더 강한 선택. 이니셔티브를 잡고 폴드 에쿼티를 확보할 기회.`;
+      return `⚠️ 콜(따라가기)보다 레이즈(올리기)가 더 좋은 선택. 레이즈하면 ① 상대 폴드로 팟을 바로 먹거나 ② 주도권을 잡고 포스트플롭을 유리하게 진행할 수 있어요.`;
     }
     if (recAct === 'call' && actualAct === 'fold') {
-      return `⚠️ 팟 오즈/포지션상 콜이 가능한 스팟을 포기. 수익 기회 놓침.`;
+      return `⚠️ 팟에 돈이 많이 쌓여 있어 콜 가격이 저렴한 스팟이었어요. "5원 내고 100원 팟 볼 기회"를 공짜로 버린 셈이에요.`;
     }
     if (recAct === 'call' && (actualAct === 'raise' || actualAct === 'allin')) {
-      return `⚠️ 과한 공격. 3-Bet/올인 레인지가 아닌 핸드로 리레이즈 → 상대 밸류에 잡힐 위험.`;
+      return `⚠️ 이 핸드로 재레이즈/올인까지는 과해요. 상대가 더 강한 핸드를 들고 있을 확률이 높아 큰 손실로 이어질 수 있어요. 콜로 플롭만 싸게 보는 게 맞아요.`;
     }
-    return `⚠️ 근거: ${rec.reason}`;
+    return `⚠️ ${rec.reason}`;
   }
 
-  // 포스트플롭
+  // 포스트플롭 — 수학 중심
   const eqP = (rec.equity * 100).toFixed(1);
   const poP = (rec.potOdds * 100).toFixed(1);
+  const loseP = Math.round((1 - rec.equity) * 100);
+
   if (recAct === 'fold' && (actualAct === 'call' || actualAct === 'raise' || actualAct === 'allin')) {
-    return `⚠️ 승률 ${eqP}% < 필요승률 ${poP}%. 콜은 장기적 -EV. 폴드가 수학적 정답.`;
+    return `⚠️ 이길 확률 ${eqP}%가 "필요 확률(= 콜 금액 대비 팟 크기에서 나오는 최소 승률)" ${poP}%보다 낮아요. 쉽게 말해 100번 중 ${loseP}번은 져요. 계속 콜하면 장기적으로 손해(-EV=평균 손실). 폴드가 돈 지키는 선택.`;
   }
   if (recAct === 'call' && actualAct === 'fold') {
-    return `⚠️ 승률 ${eqP}% ≥ 필요승률 ${poP}%. 팟 오즈상 콜이 +EV인 스팟을 놓침.`;
+    return `⚠️ 이길 확률 ${eqP}%가 필요 확률 ${poP}%보다 높아요. 콜하면 평균적으로 돈 버는 스팟이었는데 너무 빨리 포기했어요. 겁내지 말고 콜하세요.`;
   }
   if ((recAct === 'raise' || recAct === 'bet') && actualAct === 'fold') {
-    return `⚠️ 승률 ${eqP}%로 밸류 베팅/레이즈가 정답. 폴드는 과소평가.`;
+    return `⚠️ 이길 확률 ${eqP}%면 이 상황에서는 오히려 공격(베팅=먼저 돈 내기 / 레이즈=올리기)이 맞아요. 폴드는 벌 기회를 그냥 버린 거예요.`;
   }
   if ((recAct === 'raise' || recAct === 'bet') && (actualAct === 'call' || actualAct === 'check')) {
-    return `⚠️ 승률 ${eqP}%면 밸류 추출을 위해 공격적 액션이 필요. 체크/콜은 밸류를 흘림.`;
+    return `⚠️ 이길 확률 ${eqP}%로 매우 강해요. 레이즈/베팅(올리기·먼저 돈 내기)으로 상대에게 "돈을 더 받아내는" 밸류 플레이가 정답. 체크(패스)·콜만 하면 벌 수 있는 돈을 흘려보낸 거예요.`;
   }
   if ((recAct === 'check') && (actualAct === 'bet' || actualAct === 'raise')) {
-    return `⚠️ 승률 ${eqP}%는 밸류 베팅에 약하고, 베팅 받았을 때 도망가기도 어려움. 체크가 무난.`;
+    return `⚠️ 이길 확률 ${eqP}%로는 베팅이 위험해요. 상대가 콜하면 대부분 지고, 상대가 레이즈해오면 도망치기도 애매. 체크(그냥 패스)가 안전해요.`;
   }
-  return `⚠️ 근거: ${rec.reason}`;
+  return `⚠️ ${rec.reason}`;
 }
 
 function showHandSummaryToast() {
