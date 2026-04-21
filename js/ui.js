@@ -275,6 +275,13 @@ async function submitLogChat() {
   if (!input) return;
   const text = input.value.trim();
   if (!text) return;
+
+  // 키 없으면 인라인 키 설정 UI로 유도
+  if (typeof getAIKey === 'function' && !getAIKey()) {
+    showInlineKeySetup(text);
+    return;
+  }
+
   input.value = '';
   appendLogChatMsg('user', text);
   appendLogChatMsg('assistant', '⏳ 생각 중...', true);
@@ -284,6 +291,47 @@ async function submitLogChat() {
     appendLogChatMsg('assistant', '⚠️ ' + result.error);
   } else {
     appendLogChatMsg('assistant', result.reply);
+  }
+}
+
+function showInlineKeySetup(pendingQuestion) {
+  const box = document.getElementById('log-chat-messages');
+  if (!box) return;
+  box.innerHTML = '';
+  const setup = document.createElement('div');
+  setup.className = 'log-chat-setup';
+  setup.innerHTML = `
+    <div style="color:#ffd97a; font-weight:700; margin-bottom:6px">🔑 AI 코치 사용을 위해 API 키를 입력하세요</div>
+    <div style="color:#8b9095; font-size:10px; line-height:1.5; margin-bottom:8px">
+      <a href="https://openrouter.ai/keys" target="_blank" style="color:#5a9cdf">openrouter.ai/keys</a>에서 무료 발급.<br>
+      키는 이 브라우저에만 저장되며 다른 곳으로 전송되지 않습니다.
+    </div>
+    <input type="password" id="inline-key-input" placeholder="sk-or-v1-..." style="width:100%; padding:6px 8px; background:#1a1f26; border:1px solid #2d3642; color:#e8e8e8; border-radius:4px; font-family:monospace; font-size:11px; margin-bottom:6px">
+    <button class="primary" style="width:100%; padding:6px" onclick="saveInlineKey()">저장하고 계속</button>
+  `;
+  box.appendChild(setup);
+  window._pendingLogChatQuestion = pendingQuestion || '';
+  setTimeout(() => document.getElementById('inline-key-input')?.focus(), 50);
+}
+
+async function saveInlineKey() {
+  const input = document.getElementById('inline-key-input');
+  if (!input) return;
+  const key = input.value.trim();
+  if (!key) { alert('API 키를 입력하세요.'); return; }
+  if (typeof setAIKey === 'function') setAIKey(key);
+  // 메시지 박스 초기화
+  const box = document.getElementById('log-chat-messages');
+  if (box) box.innerHTML = '';
+  appendLogChatMsg('assistant', '✅ 키가 저장되었습니다! 이제 질문에 답해드릴게요.');
+  // 보류된 질문 자동 제출
+  const pending = window._pendingLogChatQuestion;
+  window._pendingLogChatQuestion = '';
+  if (pending) {
+    const chatInput = document.getElementById('log-chat-input');
+    if (chatInput) chatInput.value = pending;
+    await new Promise(r => setTimeout(r, 300));
+    submitLogChat();
   }
 }
 
