@@ -5,6 +5,7 @@ let awaitingHumanInput = false;
 let coachingEnabled = true;
 let lastHeroActionStart = 0; // 한 핸드 내 히어로 결정 수집용
 let currentHandHeroDecisions = [];
+let handEndedRevealed = new Set(); // 핸드 종료 후 클릭해서 공개된 플레이어 ID
 
 const INPROGRESS_KEY = 'pokermaster_inprogress';
 
@@ -247,8 +248,9 @@ function applyAndContinue(decision) {
 function postHandSettle() {
   const hand = tournament.currentHand;
   if (!hand) return;
-  // 결과 표시
-  renderTable('table', tournament, hand, { revealOpponents: true });
+  // 결과 표시 — 상대 카드는 덮어두고 클릭으로 공개
+  handEndedRevealed = new Set();
+  renderPostHandTable(hand);
 
   // 쇼다운: 2명 이상 남아 있고 보드가 깔렸으면 카드 공개 + 상세 승자 설명
   const survivors = hand.playerStates.filter(p => !p.folded);
@@ -695,6 +697,24 @@ function explainWinReason(winnerObj, loserObj) {
     }
   }
   return `${wName} 승! 같은 ${rankKo[we.rank]}로 더 강한 조합.`;
+}
+
+function renderPostHandTable(hand) {
+  renderTable('table', tournament, hand, {
+    revealedIds: handEndedRevealed,
+    clickToReveal: true,
+    onReveal: () => renderPostHandTable(hand)
+  });
+}
+
+// 모두 공개 / 모두 다시 덮기 유틸 (원하면 버튼으로 노출 가능)
+function revealAllOpponents() {
+  const hand = tournament?.currentHand;
+  if (!hand) return;
+  for (const p of hand.playerStates) {
+    if (!p.isHuman && !p.folded) handEndedRevealed.add(p.id);
+  }
+  renderPostHandTable(hand);
 }
 
 function shortActionKor(a) {

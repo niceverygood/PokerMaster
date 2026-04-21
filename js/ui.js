@@ -53,6 +53,9 @@ function seatPositions(n) {
 function renderTable(rootId, tournament, hand, opts) {
   opts = opts || {};
   const revealOpponents = !!opts.revealOpponents;
+  const revealedIds = opts.revealedIds || new Set();
+  const clickToReveal = !!opts.clickToReveal;
+  const onReveal = opts.onReveal;
   const highlightPlayerId = opts.highlightPlayerId;
   const heroId = tournament ? tournament.players.find(p => p.isHuman).id : opts.heroId;
 
@@ -122,9 +125,19 @@ function renderTable(rootId, tournament, hand, opts) {
     if (hole && hole.length === 2) {
       const h0 = hole[0] instanceof Card ? hole[0] : new Card(hole[0].rank, hole[0].suit);
       const h1 = hole[1] instanceof Card ? hole[1] : new Card(hole[1].rank, hole[1].suit);
-      const show = p.isHuman || revealOpponents;
+      const show = p.isHuman || revealOpponents || revealedIds.has(p.id);
       cards.appendChild(cardEl(h0, !show));
       cards.appendChild(cardEl(h1, !show));
+      // 클릭-공개 모드 (핸드 종료 후, 폴드 안 한 상대만)
+      if (clickToReveal && !p.isHuman && !show && !p.folded) {
+        cards.classList.add('clickable-cards');
+        cards.title = '클릭해서 카드 공개';
+        cards.onclick = (e) => {
+          e.stopPropagation();
+          revealedIds.add(p.id);
+          if (typeof onReveal === 'function') onReveal(p.id);
+        };
+      }
     }
     seat.appendChild(cards);
 
