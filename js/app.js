@@ -5,6 +5,72 @@ let awaitingHumanInput = false;
 let coachingEnabled = true;
 let lastHeroActionStart = 0; // 한 핸드 내 히어로 결정 수집용
 let currentHandHeroDecisions = [];
+
+const INPROGRESS_KEY = 'pokermaster_inprogress';
+
+function serializeTournament(t) {
+  return {
+    startStack: t.startStack,
+    handsPerLevel: t.handsPerLevel,
+    startedAt: t.startedAt,
+    handNumber: t.handNumber,
+    level: t.level,
+    buttonSeat: t.buttonSeat,
+    players: t.players.map(p => ({
+      id: p.id, name: p.name, isHuman: p.isHuman, difficulty: p.difficulty,
+      personalityId: p.personality ? p.personality.id : null,
+      stack: p.stack, eliminated: p.eliminated, position: p.position,
+      stats: p.stats,
+      _announced: !!p._announced
+    })),
+    handHistory: t.handHistory
+  };
+}
+
+function restoreTournament(saved) {
+  const t = new Tournament({
+    players: saved.players.map(p => ({ name: p.name, isHuman: p.isHuman, difficulty: p.difficulty })),
+    startStack: saved.startStack,
+    handsPerLevel: saved.handsPerLevel
+  });
+  t.startedAt = saved.startedAt;
+  t.handNumber = saved.handNumber;
+  t.level = saved.level;
+  t.buttonSeat = saved.buttonSeat;
+  t.handHistory = saved.handHistory || [];
+  saved.players.forEach((sp, i) => {
+    const p = t.players[i];
+    if (!p) return;
+    p.stack = sp.stack;
+    p.eliminated = sp.eliminated;
+    p.position = sp.position;
+    p.stats = sp.stats || p.stats;
+    p._announced = sp._announced;
+    if (sp.personalityId && typeof getPersonalityById === 'function') {
+      p.personality = getPersonalityById(sp.personalityId);
+    }
+  });
+  return t;
+}
+
+function saveInProgress() {
+  try {
+    if (!tournament || tournament.isOver()) return;
+    localStorage.setItem(INPROGRESS_KEY, JSON.stringify(serializeTournament(tournament)));
+  } catch (e) { console.warn('saveInProgress failed', e); }
+}
+
+function loadInProgress() {
+  try {
+    const raw = localStorage.getItem(INPROGRESS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) { return null; }
+}
+
+function clearInProgress() {
+  localStorage.removeItem(INPROGRESS_KEY);
+}
 let gameSpeed = localStorage.getItem('pokermaster_speed') || 'normal';
 let manualAdvance = localStorage.getItem('pokermaster_manual') === '1';
 let waitingForNextHand = false;
@@ -42,6 +108,7 @@ function startTournament() {
 
   tournament = new Tournament({ players, startStack, handsPerLevel: 8 });
   currentHandHeroDecisions = [];
+  clearInProgress(); // 새 토너먼트 시작 시 이전 진행 저장본 삭제
   showScreen('game');
   const logEntries = document.getElementById('log-entries');
   if (logEntries) logEntries.innerHTML = '';
@@ -257,6 +324,9 @@ function postHandSettle() {
   // 이번 핸드 히어로 결정 요약 토스트
   showHandSummaryToast();
 
+  // 각 핸드 종료 시 자동 저장 (다음 시작 전 상태 기준)
+  saveInProgress();
+
   if (manualAdvance) {
     // 수동 진행 모드: 계속 버튼 표시
     showContinueButton();
@@ -339,6 +409,7 @@ function finishTournament() {
     handHistory: tournament.handHistory
   };
   savePastTournament(entry);
+  clearInProgress(); // 정상 종료 시 진행 저장본 삭제
 
   // 프로필 정밀 분석 (풀 몬테카를로) + 업적 체크
   try {
@@ -365,6 +436,60 @@ function finishTournament() {
     }
     tournament = null;
   }, 800);
+}
+
+// 진행 중 토너먼트 이어하기 카드
+function renderResumeCard() {
+  const existing = document.getElementById('resume-card');
+  if (existing) existing.remove();
+  const saved = loadInProgress();
+  if (!saved) return;
+  const hero = saved.players.find(p => p.isHuman);
+  const alive = saved.players.filter(p => !p.eliminated).length;
+  const date = new Date(saved.startedAt);
+  const heroStack = hero?.stack?.toLocaleString() || '?';
+  const wrap = document.createElement('section');
+  wrap.id = 'resume-card';
+  wrap.className = 'menu-section';
+  wrap.innerHTML = `
+    <h2>▶ 이어하기 (진행 중 토너먼트)</h2>
+    <div class="tournament-item" style="cursor:default">
+      <div><b>${date.toLocaleString('ko-KR')}</b></div>
+      <div class="muted">핸드 #${saved.handNumber} 완료 · 생존 ${alive}명 · 내 스택 <b style="color:#ffd97a">${heroStack}</b></div>
+    </div>
+    <div class="button-row" style="margin-top:10px">
+      <button class="primary big" onclick="resumeTournament()">▶ 이어서 플레이</button>
+      <button class="secondary" onclick="discardInProgress()">🗑 버리기</button>
+    </div>
+  `;
+  const menuWrap = document.querySelector('.menu-wrap');
+  const profileCard = document.getElementById('profile-card');
+  if (menuWrap && profileCard) menuWrap.insertBefore(wrap, profileCard.nextSibling);
+}
+
+function resumeTournament() {
+  const saved = loadInProgress();
+  if (!saved) return;
+  try {
+    tournament = restoreTournament(saved);
+    currentHandHeroDecisions = [];
+    showScreen('game');
+    const logEntries = document.getElementById('log-entries');
+    if (logEntries) logEntries.innerHTML = '';
+    logMessage(`--- 토너먼트 이어하기 (핸드 #${tournament.handNumber} 완료 상태) ---`);
+    renderTopbar(tournament);
+    startNextHand();
+  } catch (e) {
+    alert('이어하기 실패: ' + e.message);
+    console.error(e);
+  }
+}
+
+function discardInProgress() {
+  if (!confirm('진행 중 토너먼트를 완전히 버릴까요? 되돌릴 수 없습니다.')) return;
+  clearInProgress();
+  const el = document.getElementById('resume-card');
+  if (el) el.remove();
 }
 
 // 복기 화면
@@ -430,11 +555,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-bet-2x').onclick = () => setBet('2x');
 
   document.getElementById('quit-btn').onclick = () => {
-    if (confirm('토너먼트를 포기하고 메뉴로 돌아갈까요?')) {
+    if (confirm('메뉴로 돌아갈까요? 현재 토너먼트는 자동 저장되어 나중에 이어할 수 있어요.')) {
+      saveInProgress();
       tournament = null;
       showScreen('menu');
       refreshPastList();
       renderProfileCard();
+      renderResumeCard();
     }
   };
 
@@ -457,6 +584,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   refreshPastList();
   renderProfileCard();
+  renderResumeCard();
 
   const coachToggle = document.getElementById('coaching-toggle');
   if (coachToggle) {
