@@ -121,7 +121,7 @@ function buildSteps(hand) {
       cur.street = act.street;
       for (const p of cur.players) {
         p.bet = 0;
-        if (!p.folded) p.lastAction = null;
+        // lastAction 유지 (스트리트 전환 시 직전 액션 계속 보이게)
       }
       cur.kind = 'deal';
       cur.label = `${streetName(act.street)} 오픈`;

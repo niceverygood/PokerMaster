@@ -138,9 +138,14 @@ function renderTable(rootId, tournament, hand, opts) {
       seat.appendChild(aiEl);
     }
 
-    // 이번 스트리트 최근 액션 뱃지
-    if (p.lastAction) {
-      const actEl = el('div', 'seat-action action-' + p.lastAction.type, actionPillText(p.lastAction));
+    // 최근 액션 뱃지 (이전 스트리트의 액션도 유지, 현재 액션자는 제외)
+    if (p.lastAction && p.id !== highlightPlayerId) {
+      const currentStreet = hand?.street;
+      const actionStreet = p.lastAction.street;
+      const isOld = currentStreet && actionStreet && actionStreet !== currentStreet && !p.folded;
+      let text = actionPillText(p.lastAction);
+      if (isOld) text = `${text} · ${streetName(actionStreet)}`;
+      const actEl = el('div', 'seat-action action-' + p.lastAction.type + (isOld ? ' old-action' : ''), text);
       seat.appendChild(actEl);
     }
 
@@ -190,6 +195,88 @@ function renderHeroInfo(tournament, hand, legal) {
 
 function streetName(s) {
   return { preflop: '프리플롭', flop: '플롭', turn: '턴', river: '리버' }[s] || s;
+}
+
+// 현재 히어로 패 + 보드 조합 강도를 실시간 계산
+function heroHandStrength(hole, board) {
+  if (!hole || hole.length !== 2) return '-';
+  const h0 = hole[0] instanceof Card ? hole[0] : new Card(hole[0].rank, hole[0].suit);
+  const h1 = hole[1] instanceof Card ? hole[1] : new Card(hole[1].rank, hole[1].suit);
+  const b = (board || []).map(c => c instanceof Card ? c : new Card(c.rank, c.suit));
+
+  // 프리플롭
+  if (b.length === 0) {
+    const paired = h0.rank === h1.rank;
+    const suited = h0.suit === h1.suit;
+    if (paired) return `포켓 페어 ${h0.rankStr}${h1.rankStr} (같은 숫자 2장)`;
+    const hi = h0.rank > h1.rank ? h0 : h1;
+    const lo = h0.rank > h1.rank ? h1 : h0;
+    const type = suited ? '수딩(같은 무늬)' : '오프슈트(다른 무늬)';
+    return `${hi.rankStr}${lo.rankStr} ${type}`;
+  }
+
+  const all = [...b, h0, h1];
+  let ev;
+  try { ev = all.length === 5 ? evaluate5(all) : evaluate7(all); } catch (e) { return '-'; }
+
+  // 페어 종류 세부화
+  let label = ev.name;
+  if (ev.rank === 2) { // 원 페어
+    const boardRanks = b.map(c => c.rank);
+    const topBoard = Math.max(...boardRanks);
+    const counts = {};
+    for (const c of all) counts[c.rank] = (counts[c.rank] || 0) + 1;
+    const pairRank = Object.keys(counts).map(Number).find(r => counts[r] === 2);
+    if (pairRank != null) {
+      const rs = RANK_CHARS[pairRank - 2];
+      if (h0.rank === h1.rank) {
+        // 포켓 페어
+        if (pairRank > topBoard) label = `오버페어 ${rs}${rs} (보드보다 높은 포켓 페어)`;
+        else label = `언더 페어 ${rs}${rs} (보드보다 낮은 포켓 페어)`;
+      } else if (pairRank === topBoard) {
+        label = `탑 페어 ${rs} (가장 높은 보드 카드와 매치)`;
+      } else if (boardRanks.includes(pairRank)) {
+        // 내가 보드의 어느 카드와 매치했는지
+        const sorted = [...new Set(boardRanks)].sort((a, b) => b - a);
+        const idx = sorted.indexOf(pairRank);
+        const ord = idx === 1 ? '세컨드' : idx === 2 ? '써드' : '웜';
+        label = `${ord} 페어 ${rs} (보드 ${idx + 1}번째 카드와 매치)`;
+      }
+    }
+  } else if (ev.rank === 1) {
+    const hi = h0.rank > h1.rank ? h0 : h1;
+    label = `하이카드 ${hi.rankStr}`;
+  } else if (ev.rank === 3) {
+    label = `투 페어`;
+  } else if (ev.rank === 4) {
+    const counts = {};
+    for (const c of all) counts[c.rank] = (counts[c.rank] || 0) + 1;
+    const tripRank = Object.keys(counts).map(Number).find(r => counts[r] === 3);
+    const hasPocket = h0.rank === h1.rank && h0.rank === tripRank;
+    label = hasPocket ? `셋(포켓으로 만든 트립스)` : `트립스(보드와 3매치)`;
+  }
+
+  // 드로우 감지 (리버 제외)
+  const extras = [];
+  if (b.length >= 3 && b.length <= 4) {
+    const suitCounts = [0, 0, 0, 0];
+    for (const c of all) suitCounts[c.suit]++;
+    const maxSuit = Math.max(...suitCounts);
+    if (maxSuit === 4 && ev.rank < 6) extras.push('플러시 드로우');
+
+    // 스트레이트 드로우 간이 판정
+    const unique = [...new Set(all.map(c => c.rank))].sort((a, b) => a - b);
+    // 오픈엔드: 연속 4개
+    for (let i = 0; i <= unique.length - 4; i++) {
+      if (unique[i + 3] - unique[i] === 3 && ev.rank < 5) {
+        extras.push('오픈엔드 스트레이트 드로우');
+        break;
+      }
+    }
+  }
+
+  if (extras.length) label += ' + ' + extras.join(' + ');
+  return label;
 }
 
 function actionPillText(a) {

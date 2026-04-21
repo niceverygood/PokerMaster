@@ -485,6 +485,7 @@ button.secondary:hover:not(:disabled) { background: #385a7a; }
 .action-call { background: #2e7a4a; color: #d6ffe0; }
 .action-bet, .action-raise { background: #b85420; color: #ffe6d0; }
 .action-allin { background: #c42020; color: #fff; }
+.seat-action.old-action { opacity: 0.6; font-style: italic; }
 
 .seat-personality-btn {
   margin-top: 4px; padding: 2px 8px;
@@ -536,9 +537,24 @@ button.secondary:hover:not(:disabled) { background: #385a7a; }
   margin-bottom: 14px;
 }
 .pm-advice b { color: #ffd97a; }
+.pm-section-title {
+  font-size: 12px; font-weight: 700; color: #bcd4f6;
+  margin: 10px 0 6px; padding-top: 4px;
+  border-top: 1px solid #2d3642;
+}
 .pm-stats {
   display: grid; grid-template-columns: repeat(4, 1fr);
-  gap: 8px; margin-bottom: 14px;
+  gap: 6px; margin-bottom: 8px;
+}
+.pm-stat.pm-stat-wide { grid-column: span 3; }
+.pm-bluff-bar {
+  height: 10px; background: #0f1419; border-radius: 5px; overflow: hidden;
+  margin: 4px 0 4px;
+}
+.pm-bluff-fill { height: 100%; transition: width 0.3s; }
+.pm-bluff-note {
+  font-size: 11px; font-weight: 700; text-align: right;
+  margin-bottom: 10px;
 }
 .pm-stat {
   background: #0f1419; padding: 10px 6px; border-radius: 6px;

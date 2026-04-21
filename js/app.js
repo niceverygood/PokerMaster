@@ -721,7 +721,7 @@ function renderProfileCard() {
     ${mistakesHtml}`;
 }
 
-// 성향 모달
+// 성향 모달 — 스트리트별 공격성 + 블러프 추정 포함
 function showPersonalityModal(playerId) {
   if (!tournament) return;
   const player = tournament.players.find(p => p.id === playerId);
@@ -732,6 +732,42 @@ function showPersonalityModal(playerId) {
   const vpip = hp > 0 ? Math.round(st.vpipHands / hp * 100) : 0;
   const pfr = hp > 0 ? Math.round(st.pfrHands / hp * 100) : 0;
   const af = (st.passiveActions > 0) ? (st.aggressiveActions / st.passiveActions).toFixed(1) : (st.aggressiveActions > 0 ? '∞' : '-');
+
+  // 스트리트별 공격성 % = (bet+raise) / total actions that street
+  const streetAggro = (s) => {
+    const a = st.streetActions?.[s] || { bet: 0, raise: 0, call: 0, check: 0, fold: 0 };
+    const total = a.bet + a.raise + a.call + a.check + a.fold;
+    return total > 0 ? Math.round((a.bet + a.raise) / total * 100) : null;
+  };
+  const flopAggro = streetAggro('flop');
+  const turnAggro = streetAggro('turn');
+  const riverAggro = streetAggro('river');
+
+  // Fold-to-Bet %
+  const foldToBet = st.facedBetCount > 0 ? Math.round(st.foldedToBetCount / st.facedBetCount * 100) : null;
+  // 3-Bet %
+  const threeBet = st.facedPreflopRaise > 0 ? Math.round(st.threeBetCount / st.facedPreflopRaise * 100) : null;
+
+  // 블러프 추정 (0~100):
+  //  기반: 성향의 bluffFreq + 관측된 공격성
+  //  리버에서 공격이 많을수록, VPIP가 높은데 PFR도 높을수록 블러프 의심↑
+  //  폴드-투-벳이 낮으면 (잘 안 접음) 블러프라기보단 스테이션일 수 있음
+  let bluffScore = Math.round(pers.bluffFreq * 60); // 기본 성향 반영
+  if (riverAggro != null) bluffScore += Math.round(riverAggro * 0.3);
+  if (vpip > 40 && pfr > 25) bluffScore += 10;
+  if (foldToBet != null && foldToBet < 25) bluffScore = Math.max(0, bluffScore - 20); // 콜링스테이션 경향
+  bluffScore = Math.max(0, Math.min(100, bluffScore));
+  const bluffLabel = bluffScore >= 70 ? '매우 높음 — 블러프 빈번' :
+                     bluffScore >= 45 ? '높음 — 블러프 섞임' :
+                     bluffScore >= 25 ? '중간' :
+                     bluffScore >= 10 ? '낮음 — 대부분 밸류' :
+                                        '거의 없음 — 베팅=강한 핸드';
+  const bluffColor = bluffScore >= 70 ? '#ff7a7a' :
+                     bluffScore >= 45 ? '#ffb566' :
+                     bluffScore >= 25 ? '#ffd97a' :
+                                        '#8fe8a5';
+
+  const fmtPct = (v) => v == null ? '—' : v + '%';
 
   closePersonalityModal();
   const wrap = document.createElement('div');
@@ -750,16 +786,39 @@ function showPersonalityModal(playerId) {
       </div>
       <div class="pm-desc">${pers.desc}</div>
       <div class="pm-advice"><b>공략 팁:</b> ${pers.adviceTip}</div>
+
+      <div class="pm-section-title">📊 프리플롭 통계</div>
       <div class="pm-stats">
         <div class="pm-stat"><div class="pm-stat-value">${vpip}%</div><div class="pm-stat-label">VPIP</div></div>
         <div class="pm-stat"><div class="pm-stat-value">${pfr}%</div><div class="pm-stat-label">PFR</div></div>
-        <div class="pm-stat"><div class="pm-stat-value">${af}</div><div class="pm-stat-label">AF</div></div>
+        <div class="pm-stat"><div class="pm-stat-value">${fmtPct(threeBet)}</div><div class="pm-stat-label">3-Bet</div></div>
         <div class="pm-stat"><div class="pm-stat-value">${hp}</div><div class="pm-stat-label">핸드</div></div>
       </div>
+
+      <div class="pm-section-title">🎯 포스트플롭 공격성 (베팅+레이즈 비율)</div>
+      <div class="pm-stats">
+        <div class="pm-stat"><div class="pm-stat-value">${fmtPct(flopAggro)}</div><div class="pm-stat-label">플롭</div></div>
+        <div class="pm-stat"><div class="pm-stat-value">${fmtPct(turnAggro)}</div><div class="pm-stat-label">턴</div></div>
+        <div class="pm-stat"><div class="pm-stat-value">${fmtPct(riverAggro)}</div><div class="pm-stat-label">리버</div></div>
+        <div class="pm-stat"><div class="pm-stat-value">${af}</div><div class="pm-stat-label">AF</div></div>
+      </div>
+
+      <div class="pm-section-title">🛡️ 대응 패턴</div>
+      <div class="pm-stats">
+        <div class="pm-stat"><div class="pm-stat-value">${fmtPct(foldToBet)}</div><div class="pm-stat-label">베팅에 폴드</div></div>
+        <div class="pm-stat pm-stat-wide"><div class="pm-stat-value" style="color:${bluffColor}">${bluffScore}/100</div><div class="pm-stat-label">블러프 추정</div></div>
+      </div>
+      <div class="pm-bluff-bar"><div class="pm-bluff-fill" style="width:${bluffScore}%; background:${bluffColor}"></div></div>
+      <div class="pm-bluff-note" style="color:${bluffColor}">${bluffLabel}</div>
+
       <div class="pm-hint">
-        <div><b>VPIP</b>: 자발적으로 팟에 들어간 비율. 20~25% 타이트 / 30%+ 루즈.</div>
-        <div><b>PFR</b>: 프리플롭 레이즈 비율. VPIP에 근접할수록 공격적.</div>
-        <div><b>AF</b>: 공격성 = (베팅+레이즈) / (콜+체크). 2.0 이상이면 공격적.</div>
+        <div><b>VPIP</b>: 프리플롭에 자발적으로 참가한 비율. 20~25% 타이트 / 30%+ 루즈.</div>
+        <div><b>PFR</b>: 프리플롭 레이즈 비율. VPIP와 비슷할수록 공격적.</div>
+        <div><b>3-Bet</b>: 프리플롭 레이즈에 재레이즈하는 비율. 10%+ 공격적.</div>
+        <div><b>AF</b>: (베팅+레이즈) ÷ (콜+체크). 2.0+ 공격적, 1.0 미만 수동적.</div>
+        <div><b>스트리트 공격성</b>: 후기 스트리트로 갈수록 ↑면 블러프 가능성 ↑.</div>
+        <div><b>베팅에 폴드</b>: 낮을수록 잘 안 접음 (콜링스테이션). 높을수록 블러프에 약함.</div>
+        <div><b>블러프 추정</b>: 성향 + 관측 행동 조합. 70+면 콜로 잡을 만함, 10 미만이면 레이즈 시 진짜 강한 핸드.</div>
       </div>
     </div>
   `;

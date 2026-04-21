@@ -41,7 +41,25 @@ class Tournament {
       stack: this.startStack,
       eliminated: false,
       position: null,
-      stats: { handsPlayed: 0, vpipHands: 0, pfrHands: 0, aggressiveActions: 0, passiveActions: 0 }
+      stats: {
+        handsPlayed: 0,
+        vpipHands: 0,
+        pfrHands: 0,
+        aggressiveActions: 0,
+        passiveActions: 0,
+        // 스트리트별 카운트
+        streetActions: {
+          flop:  { bet: 0, raise: 0, call: 0, check: 0, fold: 0 },
+          turn:  { bet: 0, raise: 0, call: 0, check: 0, fold: 0 },
+          river: { bet: 0, raise: 0, call: 0, check: 0, fold: 0 }
+        },
+        // 베팅 대응
+        facedBetCount: 0,
+        foldedToBetCount: 0,
+        // 3-Bet
+        facedPreflopRaise: 0,
+        threeBetCount: 0
+      }
     }));
     this.handNumber = 0;
     this.level = 0;
@@ -262,10 +280,14 @@ class Tournament {
     p.hasActed = true;
     p.lastAction = { type: actualType, amount: amountRecord, street: h.street };
 
-    // 통계: VPIP / PFR / 공격성
+    // 통계: VPIP / PFR / 공격성 / 스트리트별 / 3-Bet / Fold-to-Bet
     const mainP = this.players.find(mp => mp.id === p.id);
     if (mainP && mainP.stats) {
-      if (h.street === 'preflop') {
+      const street = h.street;
+      const wasFacedBet = toCall > 0;
+      const wasFacedRaise = wasFacedBet && h.currentBet > (street === 'preflop' ? h.bb : 0);
+
+      if (street === 'preflop') {
         if ((action.type === 'call' || action.type === 'bet' || action.type === 'raise' || action.type === 'allin') && !p.vpipThisHand) {
           p.vpipThisHand = true;
           mainP.stats.vpipHands++;
@@ -274,9 +296,26 @@ class Tournament {
           p.pfrThisHand = true;
           mainP.stats.pfrHands++;
         }
+        if (wasFacedRaise) {
+          mainP.stats.facedPreflopRaise++;
+          if (action.type === 'raise' || action.type === 'allin') mainP.stats.threeBetCount++;
+        }
       }
+
       if (action.type === 'bet' || action.type === 'raise' || action.type === 'allin') mainP.stats.aggressiveActions++;
       else if (action.type === 'call' || action.type === 'check') mainP.stats.passiveActions++;
+
+      // 스트리트별 카운트 (플롭 이후만)
+      if (street !== 'preflop' && mainP.stats.streetActions[street]) {
+        const bucket = action.type === 'allin' ? 'raise' : action.type;
+        if (mainP.stats.streetActions[street][bucket] != null) mainP.stats.streetActions[street][bucket]++;
+      }
+
+      // 베팅에 대응한 횟수 / 그 중 폴드한 횟수
+      if (wasFacedBet) {
+        mainP.stats.facedBetCount++;
+        if (action.type === 'fold') mainP.stats.foldedToBetCount++;
+      }
     }
     h.actions.push({
       street: h.street,
@@ -345,11 +384,10 @@ class Tournament {
 
   nextStreet() {
     const h = this.currentHand;
-    // 베트 리셋 (새 스트리트 → 액션 표시 클리어, 단 폴드는 유지)
+    // 베트만 리셋. lastAction은 유지해서 "직전 액션이 뭐였는지" 계속 보이게
     for (const p of h.playerStates) {
       p.bet = 0;
       p.hasActed = false;
-      if (!p.folded) p.lastAction = null;
     }
     h.currentBet = 0;
     h.minRaise = h.bb;
