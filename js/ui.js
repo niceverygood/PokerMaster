@@ -24,6 +24,15 @@ const SEAT_POSITIONS_6 = [
   { x: 30, y: 10 },  // 4 위 왼쪽
   { x: 5,  y: 40 }   // 5 왼쪽 위
 ];
+const SEAT_POSITIONS_7 = [
+  { x: 50, y: 93 },  // 0 hero 아래
+  { x: 88, y: 80 },  // 1
+  { x: 95, y: 40 },  // 2
+  { x: 75, y: 13 },  // 3 위 오른쪽
+  { x: 50, y: 8 },   // 4 맨 위
+  { x: 25, y: 13 },  // 5 위 왼쪽
+  { x: 5,  y: 40 }   // 6
+];
 const SEAT_POSITIONS_5 = [
   { x: 50, y: 95 }, { x: 95, y: 60 }, { x: 75, y: 10 }, { x: 25, y: 10 }, { x: 5, y: 60 }
 ];
@@ -37,7 +46,7 @@ const SEAT_POSITIONS_2 = [
   { x: 50, y: 95 }, { x: 50, y: 10 }
 ];
 function seatPositions(n) {
-  return ({ 2: SEAT_POSITIONS_2, 3: SEAT_POSITIONS_3, 4: SEAT_POSITIONS_4, 5: SEAT_POSITIONS_5, 6: SEAT_POSITIONS_6 })[n];
+  return ({ 2: SEAT_POSITIONS_2, 3: SEAT_POSITIONS_3, 4: SEAT_POSITIONS_4, 5: SEAT_POSITIONS_5, 6: SEAT_POSITIONS_6, 7: SEAT_POSITIONS_7 })[n];
 }
 
 // 테이블 렌더: hand는 engine.currentHand 또는 스냅샷
@@ -92,6 +101,18 @@ function renderTable(rootId, tournament, hand, opts) {
     const nameRow = el('div', 'seat-name');
     nameRow.textContent = `${p.name}${p.position ? ' (' + p.position + ')' : ''}`;
     seat.appendChild(nameRow);
+
+    // 딜러 버튼 / SB / BB 칩
+    if (p.position === 'BTN' || (n === 2 && p.position === 'SB')) {
+      const chip = el('div', 'pos-chip dealer', 'D');
+      seat.appendChild(chip);
+    } else if (p.position === 'SB') {
+      const chip = el('div', 'pos-chip sb', 'SB');
+      seat.appendChild(chip);
+    } else if (p.position === 'BB') {
+      const chip = el('div', 'pos-chip bb', 'BB');
+      seat.appendChild(chip);
+    }
 
     const stackRow = el('div', 'seat-stack', `칩: ${(p.stack || 0).toLocaleString()}`);
     seat.appendChild(stackRow);

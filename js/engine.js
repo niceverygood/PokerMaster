@@ -5,7 +5,8 @@ const POSITIONS_BY_COUNT = {
   3: ['BTN', 'SB', 'BB'],
   4: ['BTN', 'SB', 'BB', 'UTG'],
   5: ['BTN', 'SB', 'BB', 'UTG', 'CO'],
-  6: ['BTN', 'SB', 'BB', 'UTG', 'HJ', 'CO']
+  6: ['BTN', 'SB', 'BB', 'UTG', 'HJ', 'CO'],
+  7: ['BTN', 'SB', 'BB', 'UTG', 'MP', 'HJ', 'CO']
 };
 
 const BLIND_SCHEDULE = [

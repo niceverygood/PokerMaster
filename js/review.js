@@ -199,15 +199,33 @@ function renderStepInfo(hand, step, steps) {
   info.innerHTML = `<b>${step.label || ''}</b> <span class="muted">(${cur}/${total})</span>`;
 }
 
-// 히어로 결정 시점이면 분석
+// 모든 스텝에 대해 분석/설명 표시 (초보 친화적)
 function renderAnalysis(hand, step) {
   const box = document.getElementById('review-analysis');
   box.innerHTML = '';
-  if (step.kind !== 'action') return;
-  const act = step.action;
   const hero = step.players.find(p => p.isHuman);
+
+  // 블라인드/딜 등 비-액션 스텝 안내
+  if (step.kind === 'blinds') {
+    box.innerHTML = `<div class="analysis-section"><h3>블라인드 포스팅</h3>
+      <div>SB/BB가 강제로 내야 하는 초기 베팅입니다. 이 돈은 아직 누구 소유가 아니며 팟의 기초가 됩니다.</div>
+      <div class="muted">SB: ${hand.sb} · BB: ${hand.bb}</div></div>`;
+    return;
+  }
+  if (step.kind === 'deal') {
+    renderDealAnalysis(hand, step, hero);
+    return;
+  }
+  if (step.kind === 'showdown') {
+    renderShowdownAnalysis(hand, step);
+    return;
+  }
+  if (step.kind !== 'action') return;
+
+  const act = step.action;
+  // 상대방 액션 — 레인지/의미 해설
   if (!hero || act.playerId !== hero.id) {
-    box.innerHTML = '<div class="muted">(상대방 액션)</div>';
+    renderOpponentAnalysis(hand, step);
     return;
   }
 
@@ -275,6 +293,70 @@ function renderAnalysis(hand, step) {
     `;
     box.appendChild(eqBox);
   }
+}
+
+function renderDealAnalysis(hand, step, hero) {
+  const box = document.getElementById('review-analysis');
+  const boardStr = step.board.map(c => (c.rank >= 10 ? ['T','J','Q','K','A'][c.rank-10] : c.rank) + ['♠','♥','♦','♣'][c.suit]).join(' ');
+  const suits = step.board.map(c => c.suit);
+  const ranks = step.board.map(c => c.rank);
+  const sameSuit = new Set(suits).size;
+  const texture = sameSuit === 1 ? '모노톤(같은 무늬 3장 — 플러시 드로우 많음)' :
+                  sameSuit === 3 ? '레인보우(무늬 모두 달라 드로우 적은 드라이 보드)' :
+                  '일반 보드(무늬 2개)';
+  let heroAnalysis = '';
+  if (hero && step.board.length >= 3 && !hero.folded) {
+    try {
+      const hole = hero.hole.map(c => new Card(c.rank, c.suit));
+      const board = step.board.map(c => new Card(c.rank, c.suit));
+      const activeOpp = step.players.filter(p => !p.folded && p.id !== hero.id).length;
+      const eq = calculateEquity(hole, board, Math.max(1, activeOpp), 1000);
+      heroAnalysis = `<div class="eq-row"><span>내 승률(에쿼티)</span><b>${(eq.equity * 100).toFixed(1)}%</b></div>
+        <div class="eq-bar"><div class="eq-fill" style="width:${(eq.equity * 100).toFixed(1)}%"></div></div>`;
+    } catch (e) {}
+  }
+  box.innerHTML = `<div class="analysis-section"><h3>${streetName(step.street)} 오픈</h3>
+    <div>보드: <b>${boardStr}</b></div>
+    <div class="muted">${texture}</div>
+    ${heroAnalysis}
+  </div>`;
+}
+
+function renderOpponentAnalysis(hand, step) {
+  const box = document.getElementById('review-analysis');
+  const act = step.action;
+  const p = step.players.find(x => x.id === act.playerId);
+  const actKo = ({ fold: '폴드', check: '체크', call: '콜', bet: '베팅', raise: '레이즈', allin: '올인' })[act.type] || act.type;
+  let meaning = '';
+  if (act.type === 'fold') meaning = '이 핸드를 포기 — 레인지에서 제외됩니다.';
+  else if (act.type === 'check') meaning = '체크 — 약한 핸드 or 트랩 가능성. 레인지가 넓어짐.';
+  else if (act.type === 'call') meaning = '콜 — 특별히 강하진 않지만 가치 있는 핸드일 가능성 (페어, 드로우, 중간 강도).';
+  else if (act.type === 'bet' || act.type === 'raise') {
+    const posIsEarly = ['UTG', 'MP', 'HJ'].includes(p?.position);
+    meaning = posIsEarly ?
+      `${p?.position} 자리에서 공격 — 타이트한 자리라 보통 강한 레인지(예: 99+, AQ+)일 가능성이 높음.` :
+      `${p?.position} 자리에서 공격 — 포지션 이점을 이용한 넓은 공격 가능. 블러프 섞여 있을 수 있음.`;
+  }
+  else if (act.type === 'allin') meaning = '올인 — 강한 밸류(프리미엄) 또는 세미블러프(드로우+폴드 에쿼티). 상대 스택/히스토리 고려 필요.';
+  box.innerHTML = `<div class="analysis-section"><h3>상대 액션 · ${p?.name || ''} (${p?.position || ''})</h3>
+    <div>액션: <b>${actKo}${act.amount ? ' ' + act.amount.toLocaleString() : ''}</b></div>
+    <div class="muted">${meaning}</div>
+  </div>`;
+}
+
+function renderShowdownAnalysis(hand, step) {
+  const box = document.getElementById('review-analysis');
+  const survivors = step.players.filter(p => !p.folded);
+  const boardCards = step.board.map(c => new Card(c.rank, c.suit));
+  const ranked = survivors.map(p => ({
+    p, e: evaluate7([...p.hole.map(c => new Card(c.rank, c.suit)), ...boardCards])
+  })).sort((a, b) => b.e.score - a.e.score);
+  const rows = ranked.map((r, i) => {
+    const cards = r.p.hole.map(c => (c.rank >= 10 ? ['T','J','Q','K','A'][c.rank-10] : c.rank) + ['♠','♥','♦','♣'][c.suit]).join(' ');
+    const tag = i === 0 ? ' 🏆' : '';
+    return `<div class="eq-row"><span>${r.p.name} (${r.p.position}): ${cards}</span><b>${r.e.name}${tag}</b></div>`;
+  }).join('');
+  box.innerHTML = `<div class="analysis-section"><h3>쇼다운 결과</h3>${rows}</div>`;
 }
 
 function describeActionShort(act) {

@@ -50,6 +50,7 @@ function buildRange(strings) {
 // 표준 6-max 오픈 레이즈 레인지 (효과스택 >20BB 가정)
 const OPEN_RANGES = {
   UTG: buildRange(['77+', 'ATs+', 'KTs+', 'QTs+', 'JTs', 'T9s', 'AJo+']),
+  MP:  buildRange(['66+', 'A9s+', 'KTs+', 'QTs+', 'JTs', 'T9s', '98s', 'AJo+', 'KQo']),
   HJ:  buildRange(['55+', 'A8s+', 'KTs+', 'QTs+', 'JTs', 'T9s', '98s', 'AJo+', 'KQo']),
   CO:  buildRange(['22+', 'A2s+', 'K9s+', 'Q9s+', 'J9s+', 'T9s', '98s', '87s', '76s', 'A9o+', 'KTo+', 'QTo+', 'JTo']),
   BTN: buildRange(['22+', 'A2s+', 'K4s+', 'Q7s+', 'J7s+', 'T7s+', '96s+', '86s+', '75s+', '64s+', '54s',
@@ -62,6 +63,7 @@ const OPEN_RANGES = {
 // 숏스택 푸시 레인지 (대략적인 Nash ICM 단순화)
 const PUSH_15BB = {
   UTG: buildRange(['66+', 'A9s+', 'KJs+', 'AJo+']),
+  MP:  buildRange(['55+', 'A8s+', 'KTs+', 'QJs', 'AJo+', 'KQo']),
   HJ:  buildRange(['44+', 'A7s+', 'KTs+', 'QJs', 'ATo+', 'KQo']),
   CO:  buildRange(['22+', 'A5s+', 'KTs+', 'QTs+', 'JTs', 'A9o+', 'KJo+']),
   BTN: buildRange(['22+', 'A2s+', 'K7s+', 'Q9s+', 'J9s+', 'T9s', '98s', '87s', '76s',
@@ -72,6 +74,7 @@ const PUSH_15BB = {
 
 const PUSH_10BB = {
   UTG: buildRange(['44+', 'A7s+', 'KTs+', 'QJs', 'AJo+']),
+  MP:  buildRange(['33+', 'A6s+', 'KTs+', 'QTs+', 'JTs', 'ATo+', 'KJo+']),
   HJ:  buildRange(['22+', 'A5s+', 'K9s+', 'QTs+', 'JTs', 'A9o+', 'KJo+']),
   CO:  buildRange(['22+', 'A2s+', 'K7s+', 'Q9s+', 'J9s+', 'T9s', 'A7o+', 'KTo+', 'QJo']),
   BTN: buildRange(['22+', 'A2s+', 'K4s+', 'Q6s+', 'J7s+', 'T7s+', '96s+', '86s+', '75s+', '65s', '54s',
@@ -82,6 +85,7 @@ const PUSH_10BB = {
 
 const PUSH_5BB = {
   UTG: buildRange(['22+', 'A2s+', 'K7s+', 'Q9s+', 'JTs', 'A7o+', 'KTo+', 'QJo']),
+  MP:  buildRange(['22+', 'A2s+', 'K6s+', 'Q8s+', 'J9s+', 'T9s', 'A6o+', 'KTo+', 'QTo+', 'JTo']),
   HJ:  buildRange(['22+', 'A2s+', 'K5s+', 'Q8s+', 'J9s+', 'T9s', 'A5o+', 'K9o+', 'QTo+', 'JTo']),
   CO:  buildRange(['22+', 'A2s+', 'K2s+', 'Q6s+', 'J7s+', 'T7s+', '97s+', '87s', 'A2o+', 'K7o+', 'Q9o+', 'J9o+']),
   BTN: buildRange(['22+', 'A2s+', 'K2s+', 'Q2s+', 'J3s+', 'T6s+', '96s+', '85s+', '75s+', '64s+', '54s',
@@ -103,7 +107,7 @@ function getPushRange(position, stackBB) {
 // 프리플롭 권장 액션
 // 포지션 풀네임 (초보도 이해 쉽게)
 const POS_FULL_KO = {
-  UTG: 'UTG(첫 자리)', HJ: 'HJ(중간)', CO: 'CO(컷오프)',
+  UTG: 'UTG(첫 자리)', MP: 'MP(미들 포지션)', HJ: 'HJ(하이잭)', CO: 'CO(컷오프)',
   BTN: 'BTN(버튼=가장 좋은 자리)', SB: 'SB(스몰 블라인드)', BB: 'BB(빅 블라인드)'
 };
 function posKo(p) { return POS_FULL_KO[p] || p; }
