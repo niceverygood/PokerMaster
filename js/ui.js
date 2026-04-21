@@ -297,18 +297,23 @@ async function submitLogChat() {
   const text = input.value.trim();
   if (!text) return;
 
-  // 키 없으면 인라인 키 설정 UI로 유도
-  if (typeof getAIKey === 'function' && !getAIKey()) {
-    showInlineKeySetup(text);
-    return;
-  }
-
   input.value = '';
   appendLogChatMsg('user', text);
   appendLogChatMsg('assistant', '⏳ 생각 중...', true);
+
+  // askAI가 먼저 /api/openrouter 프록시를 시도하고, 실패하면 클라이언트 키를 시도
   const result = (typeof askAI === 'function') ? await askAI(text) : { error: 'AI 모듈 미로드' };
   removeLogChatLoading();
+
   if (result.error) {
+    // "API 키" 관련 에러라면 → 서버 env도 없고 클라이언트 키도 없음 → 인라인 키 설정 UI
+    if (result.error.includes('API 키') || result.error.includes('OPENROUTER_API_KEY')) {
+      const box = document.getElementById('log-chat-messages');
+      const userMsgs = box.querySelectorAll('.lcm-user');
+      if (userMsgs.length) userMsgs[userMsgs.length - 1].remove();
+      showInlineKeySetup(text);
+      return;
+    }
     appendLogChatMsg('assistant', '⚠️ ' + result.error);
   } else {
     appendLogChatMsg('assistant', result.reply);
