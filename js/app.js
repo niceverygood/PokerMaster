@@ -423,6 +423,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 프리셋
   document.getElementById('btn-bet-min').onclick = () => setBet('min');
+  document.getElementById('btn-bet-2bb')?.addEventListener('click', () => setBet('2bb'));
+  document.getElementById('btn-bet-3bb')?.addEventListener('click', () => setBet('3bb'));
   document.getElementById('btn-bet-half').onclick = () => setBet('half');
   document.getElementById('btn-bet-pot').onclick = () => setBet('pot');
   document.getElementById('btn-bet-2x').onclick = () => setBet('2x');
@@ -773,8 +775,11 @@ function setBet(kind) {
   if (!tournament) return;
   const legal = tournament.legalOptions();
   const pot = legal.potSize;
+  const bb = tournament.currentHand?.bb || 20;
   let amt;
   if (kind === 'min') amt = legal.minRaise;
+  else if (kind === '2bb') amt = Math.max(legal.minRaise, 2 * bb);
+  else if (kind === '3bb') amt = Math.max(legal.minRaise, 3 * bb);
   else if (kind === 'half') amt = Math.max(legal.minRaise, legal.toCall + Math.floor(pot * 0.5));
   else if (kind === 'pot') amt = Math.max(legal.minRaise, legal.toCall + pot);
   else if (kind === '2x') amt = Math.max(legal.minRaise, legal.toCall + pot * 2);

@@ -41,9 +41,17 @@ python3 -m http.server 8765
 
 ## AI 코치 설정
 
-AI 코치는 OpenRouter API를 사용합니다. 두 가지 방법 중 선택:
+AI 코치는 OpenRouter API를 사용합니다. 세 가지 방법 중 선택:
 
-**방법 1: 로컬 config 파일 (권장, 자동 로드)**
+**방법 1: Vercel 배포 + 환경변수 (가장 안전, 사용자는 키 몰라도 됨)**
+
+1. 이 저장소를 Vercel에 연결해 배포
+2. Vercel 대시보드 → Project Settings → Environment Variables
+3. 추가: `OPENROUTER_API_KEY` = `sk-or-v1-...`
+4. 재배포 → `/api/openrouter` 서버리스 함수가 키를 서버에서 사용
+5. 모든 방문자는 키 입력 없이 AI 사용 가능 (키는 클라이언트에 노출 X)
+
+**방법 2: 로컬 config 파일 (로컬 개발)**
 
 ```bash
 cp js/config.example.js js/config.local.js
@@ -52,9 +60,11 @@ cp js/config.example.js js/config.local.js
 
 `config.local.js`는 `.gitignore`에 의해 GitHub에 푸시되지 않습니다.
 
-**방법 2: UI 입력 (localStorage)**
+**방법 3: UI 입력 (localStorage, GitHub Pages 등)**
 
-AI 코치 패널에서 직접 입력. 브라우저 localStorage에만 저장됩니다.
+AI 코치 패널이나 로그 채팅에서 키 입력 폼 자동 표시. 브라우저 localStorage에만 저장.
+
+우선순위: **서버리스 프록시 → 로컬 config → localStorage** (자동 폴백)
 
 API 키 발급: [openrouter.ai/keys](https://openrouter.ai/keys)
 

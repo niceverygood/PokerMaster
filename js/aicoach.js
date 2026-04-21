@@ -102,16 +102,15 @@ function describeShortAction(a) {
   return a.type;
 }
 
-// AI 호출
+// AI 호출 — 우선순위:
+//  1) /api/openrouter 서버리스 프록시 (Vercel 환경변수 사용, 키 노출 X)
+//  2) 실패/부재 시 클라이언트 키 직접 호출 (localStorage 또는 config.local.js)
 async function askAI(userQuestion, opts) {
   opts = opts || {};
-  const key = getAIKey();
-  if (!key) return { error: 'API 키가 설정되지 않았습니다.' };
   if (aiBusy) return { error: '다른 요청이 진행 중입니다.' };
-
   aiBusy = true;
+
   try {
-    // 히스토리 축적 (마지막 6개까지만 유지)
     aiChatMessages.push({ role: 'user', content: userQuestion });
 
     let fullUserContent = userQuestion;
@@ -120,38 +119,68 @@ async function askAI(userQuestion, opts) {
       if (ctx) fullUserContent = `${ctx}\n\n[사용자 질문]\n${userQuestion}`;
     }
 
-    const priorHistory = aiChatMessages.slice(-8, -1); // 직전 최대 7개 (마지막 user 제외)
+    const priorHistory = aiChatMessages.slice(-8, -1);
     const messages = [
       { role: 'system', content: AI_SYSTEM_PROMPT },
       ...priorHistory,
       { role: 'user', content: fullUserContent }
     ];
+    const model = getAIModel();
+    const payload = { model, messages, max_tokens: 500, temperature: 0.4 };
 
-    const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + key,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': location.origin || 'http://localhost',
-        'X-Title': 'PokerMaster Coach'
-      },
-      body: JSON.stringify({
-        model: getAIModel(),
-        messages,
-        max_tokens: 500,
-        temperature: 0.4
-      })
-    });
-
-    if (!resp.ok) {
-      const errText = await resp.text();
-      return { error: `API ${resp.status}: ${errText.slice(0, 250)}` };
+    // 1) 서버리스 프록시 시도 (Vercel 배포 환경)
+    let data = null, proxyTried = false, proxyWorked = false;
+    try {
+      const proxyResp = await fetch('/api/openrouter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      proxyTried = true;
+      if (proxyResp.ok) {
+        data = await proxyResp.json();
+        proxyWorked = true;
+      } else {
+        // 프록시가 있긴 하지만 실패 (키 미설정 등) → 에러 메시지를 가져와 클라이언트 키로 폴백
+        try {
+          const err = await proxyResp.json();
+          // 404면 프록시가 없음 (local dev) — 조용히 폴백
+          // 500이면 프록시가 있으나 설정 문제 — 메시지 유지
+          if (proxyResp.status !== 404 && err?.error) {
+            window._lastProxyError = err.error;
+          }
+        } catch (e) {}
+      }
+    } catch (e) {
+      // 네트워크/엔드포인트 없음 — 폴백
     }
 
-    const data = await resp.json();
-    const reply = (data.choices && data.choices[0]?.message?.content) || '(빈 응답)';
+    // 2) 프록시 실패 시 클라이언트 키로 직접 호출
+    if (!proxyWorked) {
+      const key = getAIKey();
+      if (!key) {
+        return { error: window._lastProxyError || 'API 키가 설정되지 않았습니다. 키를 입력하거나 Vercel 환경변수 OPENROUTER_API_KEY를 설정하세요.' };
+      }
+      const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + key,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': location.origin || 'http://localhost',
+          'X-Title': 'PokerMaster Coach'
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!resp.ok) {
+        const errText = await resp.text();
+        return { error: `API ${resp.status}: ${errText.slice(0, 250)}` };
+      }
+      data = await resp.json();
+    }
+
+    const reply = (data && data.choices && data.choices[0]?.message?.content) || '(빈 응답)';
     aiChatMessages.push({ role: 'assistant', content: reply });
-    return { reply };
+    return { reply, viaProxy: proxyWorked };
   } catch (e) {
     return { error: '네트워크 오류: ' + e.message };
   } finally {
