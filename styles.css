@@ -446,6 +446,16 @@ button.secondary:hover:not(:disabled) { background: #385a7a; }
   font-size: 13px; border: 1px solid #2d3642;
 }
 .seat-cards { display: flex; gap: 4px; margin-top: 6px; }
+.seat-combo {
+  margin-top: 4px; padding: 3px 10px;
+  background: rgba(255, 217, 122, 0.18);
+  border: 1px solid rgba(255, 217, 122, 0.45);
+  color: #ffd97a;
+  border-radius: 10px; font-size: 11px; font-weight: 700;
+  text-align: center;
+  max-width: 220px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .seat-cards.clickable-cards {
   cursor: pointer; transition: transform 0.15s, filter 0.15s;
   position: relative;

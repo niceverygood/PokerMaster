@@ -123,13 +123,14 @@ function renderTable(rootId, tournament, hand, opts) {
 
     const cards = el('div', 'seat-cards');
     const hole = p.hole;
+    let holeCards = null;
     if (hole && hole.length === 2) {
       const h0 = hole[0] instanceof Card ? hole[0] : new Card(hole[0].rank, hole[0].suit);
       const h1 = hole[1] instanceof Card ? hole[1] : new Card(hole[1].rank, hole[1].suit);
+      holeCards = [h0, h1];
       const show = p.isHuman || revealOpponents || revealedIds.has(p.id);
       cards.appendChild(cardEl(h0, !show));
       cards.appendChild(cardEl(h1, !show));
-      // 클릭-공개 모드 (핸드 종료 후, 폴드 안 한 상대만)
       if (clickToReveal && !p.isHuman && !show && !p.folded) {
         cards.classList.add('clickable-cards');
         cards.title = '클릭해서 카드 공개';
@@ -141,6 +142,17 @@ function renderTable(rootId, tournament, hand, opts) {
       }
     }
     seat.appendChild(cards);
+
+    // 카드가 공개된 플레이어는 조합(족보) 라벨도 표시 (보드 있을 때)
+    const boardCards = (hand?.board || []).map(c => c instanceof Card ? c : new Card(c.rank, c.suit));
+    const comboShown = holeCards && !p.folded && (p.isHuman || revealOpponents || revealedIds.has(p.id)) && boardCards.length >= 1;
+    if (comboShown) {
+      try {
+        const combo = heroHandStrength(holeCards, boardCards);
+        const comboEl = el('div', 'seat-combo', combo);
+        seat.appendChild(comboEl);
+      } catch (e) {}
+    }
 
     // 현재 베팅 칩
     if (p.bet > 0) {
