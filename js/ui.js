@@ -407,15 +407,14 @@ async function submitLogChat() {
   removeLogChatLoading();
 
   if (result.error) {
-    // "API 키" 관련 에러라면 → 서버 env도 없고 클라이언트 키도 없음 → 인라인 키 설정 UI
-    if (result.error.includes('API 키') || result.error.includes('OPENROUTER_API_KEY')) {
-      const box = document.getElementById('log-chat-messages');
-      const userMsgs = box.querySelectorAll('.lcm-user');
-      if (userMsgs.length) userMsgs[userMsgs.length - 1].remove();
-      showInlineKeySetup(text);
-      return;
-    }
+    // 구체적 에러 메시지 항상 표시
     appendLogChatMsg('assistant', '⚠️ ' + result.error);
+    // 키 없음 + 프록시 없음 (404) 인 경우만 인라인 설정 UI 추가
+    const needsKey = (!result.proxyStatus || result.proxyStatus === 404) && (typeof getAIKey !== 'function' || !getAIKey());
+    if (needsKey) {
+      appendLogChatMsg('assistant', '🔑 아래에 키를 직접 입력하거나, Vercel에 배포한 경우 환경변수 설정 후 Redeploy 하세요.');
+      showInlineKeySetup(text);
+    }
   } else {
     appendLogChatMsg('assistant', result.reply);
   }

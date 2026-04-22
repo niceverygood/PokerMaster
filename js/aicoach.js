@@ -3,7 +3,7 @@
 
 const AI_KEY_STORAGE = 'pokermaster_ai_key';
 const AI_MODEL_STORAGE = 'pokermaster_ai_model';
-const DEFAULT_AI_MODEL = 'anthropic/claude-haiku-4-5';
+const DEFAULT_AI_MODEL = 'anthropic/claude-3.5-haiku';
 
 const AI_SYSTEM_PROMPT = `당신은 No-Limit Texas Hold'em 토너먼트 전문 코치입니다.
 한국어로 간결하고 실용적인 답변을 해주세요.
@@ -129,37 +129,48 @@ async function askAI(userQuestion, opts) {
     const payload = { model, messages, max_tokens: 500, temperature: 0.4 };
 
     // 1) 서버리스 프록시 시도 (Vercel 배포 환경)
-    let data = null, proxyTried = false, proxyWorked = false;
+    let data = null, proxyStatus = null, proxyWorked = false, proxyErrorDetail = null;
     try {
       const proxyResp = await fetch('/api/openrouter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      proxyTried = true;
+      proxyStatus = proxyResp.status;
       if (proxyResp.ok) {
         data = await proxyResp.json();
         proxyWorked = true;
       } else {
-        // 프록시가 있긴 하지만 실패 (키 미설정 등) → 에러 메시지를 가져와 클라이언트 키로 폴백
+        // 프록시가 응답했지만 실패 — 구체적 메시지 추출
         try {
           const err = await proxyResp.json();
-          // 404면 프록시가 없음 (local dev) — 조용히 폴백
-          // 500이면 프록시가 있으나 설정 문제 — 메시지 유지
-          if (proxyResp.status !== 404 && err?.error) {
-            window._lastProxyError = err.error;
-          }
-        } catch (e) {}
+          proxyErrorDetail = err?.error || JSON.stringify(err).slice(0, 200);
+        } catch (e) {
+          const txt = await proxyResp.text().catch(() => '');
+          proxyErrorDetail = txt.slice(0, 200) || '(응답 본문 없음)';
+        }
       }
     } catch (e) {
-      // 네트워크/엔드포인트 없음 — 폴백
+      // fetch 자체 실패 (네트워크 오류 등) — 조용히 폴백
+      proxyErrorDetail = '네트워크 오류: ' + e.message;
     }
 
     // 2) 프록시 실패 시 클라이언트 키로 직접 호출
     if (!proxyWorked) {
       const key = getAIKey();
+      // 프록시 응답이 있었는데 실패 = Vercel 배포된 프록시가 잘못됨 → 상세 에러 표시
+      if (proxyStatus != null && proxyStatus !== 404 && !key) {
+        return {
+          error: `서버 프록시 오류 (${proxyStatus}): ${proxyErrorDetail}. Vercel 대시보드에서 OPENROUTER_API_KEY 환경변수를 확인하고, 설정 후 반드시 "Redeploy" 해주세요.`,
+          proxyStatus
+        };
+      }
+      // 프록시 404(배포 안됨) + 클라 키도 없음
       if (!key) {
-        return { error: window._lastProxyError || 'API 키가 설정되지 않았습니다. 키를 입력하거나 Vercel 환경변수 OPENROUTER_API_KEY를 설정하세요.' };
+        return {
+          error: '이 배포에는 AI 프록시가 없어요. Vercel에 배포하고 OPENROUTER_API_KEY 환경변수를 설정하거나, 아래에 직접 API 키를 입력하세요.',
+          proxyStatus
+        };
       }
       const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',

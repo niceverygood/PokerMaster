@@ -43,7 +43,7 @@ module.exports = async (req, res) => {
         'X-Title': 'PokerMaster Coach'
       },
       body: JSON.stringify({
-        model: body.model || 'anthropic/claude-haiku-4-5',
+        model: body.model || 'anthropic/claude-3.5-haiku',
         messages: body.messages,
         max_tokens: body.max_tokens || 500,
         temperature: body.temperature ?? 0.4
