@@ -74,6 +74,7 @@ function clearInProgress() {
 }
 let gameSpeed = localStorage.getItem('pokermaster_speed') || 'normal';
 let manualAdvance = localStorage.getItem('pokermaster_manual') === '1';
+let aiThoughtsEnabled = localStorage.getItem('pokermaster_thoughts') === '1';
 let waitingForNextHand = false;
 
 // 속도 프리셋: [AI 기본 대기 ms, AI 랜덤 추가 ms, 핸드 사이 대기 ms]
@@ -188,6 +189,15 @@ function runAITurn() {
 
   const legal = tournament.legalOptions();
   const activeOpps = hand.playerStates.filter(p => !p.folded && p.id !== cur.id).length;
+
+  // AI 추리 모드: 액션 직전 생각 풍선 비동기 생성 (API 호출, 결과 나오는 대로 표시)
+  if (aiThoughtsEnabled && typeof generateAIThought === 'function') {
+    // 로딩 풍선 즉시 표시
+    if (typeof showThoughtBubble === 'function') showThoughtBubble(cur.id, '🤔 생각 중...', 3000);
+    generateAIThought(cur, hand).then(t => {
+      if (t && typeof showThoughtBubble === 'function') showThoughtBubble(cur.id, t, 5500);
+    }).catch(() => {});
+  }
 
   const decision = aiDecide({
     hole: cur.hole,
@@ -539,6 +549,14 @@ document.addEventListener('DOMContentLoaded', () => {
     manual.addEventListener('change', () => {
       manualAdvance = manual.checked;
       localStorage.setItem('pokermaster_manual', manualAdvance ? '1' : '0');
+    });
+  }
+  const thoughts = document.getElementById('ai-thoughts-toggle');
+  if (thoughts) {
+    thoughts.checked = aiThoughtsEnabled;
+    thoughts.addEventListener('change', () => {
+      aiThoughtsEnabled = thoughts.checked;
+      localStorage.setItem('pokermaster_thoughts', aiThoughtsEnabled ? '1' : '0');
     });
   }
 

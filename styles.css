@@ -500,6 +500,48 @@ button.secondary:hover:not(:disabled) { background: #385a7a; }
 .action-allin { background: #c42020; color: #fff; }
 .seat-action.old-action { opacity: 0.6; font-style: italic; }
 
+/* AI 생각 풍선 */
+.thought-bubble {
+  position: absolute;
+  top: -55px; left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #fff, #f0f0f0);
+  color: #222;
+  padding: 8px 12px;
+  border-radius: 14px;
+  font-size: 11px; font-weight: 500;
+  max-width: 220px; min-width: 100px;
+  width: max-content;
+  text-align: center;
+  line-height: 1.4;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+  z-index: 50;
+  opacity: 1;
+  transition: opacity 0.3s;
+  animation: thoughtPop 0.25s ease;
+}
+.thought-bubble::before {
+  content: '';
+  position: absolute;
+  bottom: -6px; left: 30%;
+  width: 10px; height: 10px;
+  background: inherit;
+  transform: rotate(45deg);
+  box-shadow: 3px 3px 3px rgba(0,0,0,0.1);
+}
+.thought-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -14px; left: 20%;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+@keyframes thoughtPop {
+  0% { transform: translateX(-50%) scale(0.7); opacity: 0; }
+  100% { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+
 .seat-personality-btn {
   margin-top: 4px; padding: 2px 8px;
   font-size: 10px; font-weight: 600;

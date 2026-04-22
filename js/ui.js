@@ -94,6 +94,7 @@ function renderTable(rootId, tournament, hand, opts) {
     const p = playerList[playerIdx];
     const pos = positions[i];
     const seat = el('div', 'seat');
+    seat.setAttribute('data-player-id', p.id);
     seat.style.left = pos.x + '%';
     seat.style.top = pos.y + '%';
 
@@ -477,6 +478,25 @@ function removeLogChatLoading() {
   if (!box) return;
   const loading = box.querySelector('.log-chat-msg.loading');
   if (loading) loading.remove();
+}
+
+// 생각 풍선 표시
+function showThoughtBubble(playerId, text, durationMs) {
+  const seat = document.querySelector(`.seat[data-player-id="${playerId}"]`);
+  if (!seat) return;
+  const existing = seat.querySelector('.thought-bubble');
+  if (existing) existing.remove();
+  const b = document.createElement('div');
+  b.className = 'thought-bubble';
+  b.textContent = text;
+  seat.appendChild(b);
+  const dur = durationMs || 5000;
+  setTimeout(() => {
+    if (b && b.parentNode) {
+      b.style.opacity = '0';
+      setTimeout(() => b.remove(), 300);
+    }
+  }, dur);
 }
 
 function quickLogAsk(q) {

@@ -327,6 +327,87 @@ async function submitAIChat() {
   renderAIChatMessages();
 }
 
+// 짧은 프롬프트 1회 호출 (히스토리 무관, 생각 풍선 등에 사용)
+async function callAIRaw(prompt, opts) {
+  opts = opts || {};
+  const model = getAIModel();
+  const payload = {
+    model,
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: opts.maxTokens || 60,
+    temperature: opts.temperature ?? 0.7
+  };
+
+  // 프록시 우선
+  try {
+    const resp = await fetch('/api/openrouter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      return data.choices?.[0]?.message?.content?.trim() || null;
+    }
+  } catch (e) {}
+
+  // 클라이언트 키 폴백
+  const key = getAIKey();
+  if (!key) return null;
+  try {
+    const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json', 'HTTP-Referer': location.origin, 'X-Title': 'PokerMaster Thought' },
+      body: JSON.stringify(payload)
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return data.choices?.[0]?.message?.content?.trim() || null;
+  } catch (e) { return null; }
+}
+
+// AI 생각 풍선 — 해당 플레이어가 속으로 하는 추리
+async function generateAIThought(aiPlayer, hand) {
+  if (!aiPlayer || !hand) return null;
+  const pers = aiPlayer.personality;
+  const hole = aiPlayer.hole ? aiPlayer.hole.map(c => c.rankStr + c.suitSym).join(' ') : '?';
+  const handStr = aiPlayer.hole ? handToString(aiPlayer.hole[0], aiPlayer.hole[1]) : '?';
+  const boardStr = hand.board.length ? hand.board.map(c => c.rankStr + c.suitSym).join(' ') : '(프리플롭)';
+  const pot = hand.playerStates.reduce((s, p) => s + p.totalBet, 0);
+
+  // 상대 관찰 요약
+  const oppLines = [];
+  for (const p of hand.playerStates) {
+    if (p.id === aiPlayer.id || p.folded) continue;
+    const last = p.lastAction ? ` 최근 ${actionPillText(p.lastAction)}` : '';
+    oppLines.push(`${p.name}(${p.position})${last}`);
+  }
+
+  const history = hand.actions.filter(a => a.type !== 'deal').slice(-6).map(a => {
+    const p = hand.playerStates.find(x => x.id === a.playerId);
+    return `${p?.name || '?'}: ${shortActPreview(a)}`;
+  }).join(' / ');
+
+  const prompt = `포커 1인칭 생각 시뮬레이션.
+나는 "${aiPlayer.name}" (${aiPlayer.position}, 성향: ${pers?.name || '일반'}). 내 핸드: ${hole} [${handStr}].
+보드: ${boardStr}. 팟: ${pot}.
+활성 상대: ${oppLines.join(', ') || '없음'}.
+최근 액션: ${history || '(없음)'}.
+
+위 상황에서 내가 속으로 하는 생각을 **30자 이내 한국어 한 문장**으로 써줘. 상대 레인지/카드 추측 또는 다음 액션 의도를 짧게 반영. 따옴표 없이.
+예시: "레이즈 잦은데 이번엔 진짜인가?" / "프리플롭 콜만 했으니 미들 페어일듯." / "BTN은 블러프일 가능성 큼"`;
+
+  const reply = await callAIRaw(prompt, { maxTokens: 80, temperature: 0.8 });
+  if (!reply) return null;
+  // 줄바꿈/따옴표 제거, 너무 길면 자름
+  return reply.replace(/[\n"'“”『』「」]/g, '').trim().slice(0, 50);
+}
+
+function shortActPreview(a) {
+  const m = { fold: '폴드', check: '체크', call: `콜${a.amount ? ' ' + a.amount : ''}`, bet: `베팅${a.amount ? ' ' + a.amount : ''}`, raise: `레이즈${a.amount ? ' ' + a.amount : ''}`, allin: '올인' };
+  return m[a.type] || a.type;
+}
+
 function quickAskAI(q) {
   const input = document.getElementById('ai-chat-input');
   if (input) input.value = q;
