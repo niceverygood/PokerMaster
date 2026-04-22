@@ -3,7 +3,8 @@
 let reviewState = {
   tournamentData: null, // {players, handHistory, startedAt, ...}
   currentHandIdx: 0,
-  stepIdx: 0 // 현재 보고 있는 액션 인덱스
+  stepIdx: 0, // 현재 보고 있는 액션 인덱스
+  revealedIds: new Set() // 복기 중 클릭으로 공개된 플레이어 ID
 };
 
 function listPastTournaments() {
@@ -65,6 +66,7 @@ function renderHandList() {
 function selectHand(idx) {
   reviewState.currentHandIdx = idx;
   reviewState.stepIdx = 0;
+  reviewState.revealedIds = new Set(); // 새 핸드 선택 시 공개 상태 초기화
   renderHandList();
   replayStep();
 }
@@ -185,9 +187,13 @@ function renderReviewTable(hand, step) {
 
   const heroId = players.find(p => p.isHuman).id;
   const mockHand = { playerStates: players, board: boardCards, bb: hand.bb };
+  // 쇼다운 스텝에서도 자동 공개하지 않고 클릭으로 공개
+  const isShowdown = step.kind === 'showdown';
   renderTable('review-table', null, mockHand, {
     heroId,
-    revealOpponents: step.kind === 'showdown',
+    revealedIds: reviewState.revealedIds,
+    clickToReveal: isShowdown,
+    onReveal: () => replayStep(),
     highlightPlayerId: step.actingPlayerId
   });
 }
